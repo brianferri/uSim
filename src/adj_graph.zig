@@ -7,14 +7,14 @@ pub fn Graph(comptime K: type, comptime T: type) type {
         allocator: std.mem.Allocator,
 
         vertices: std.AutoHashMap(K, T),
-        adjacency_lists: std.AutoHashMap(K, std.ArrayList(K)),
+        adjacency_lists: std.AutoHashMap(K, std.AutoHashMap(K, void)),
         next_vertex_index: K,
 
         pub fn init(allocator: std.mem.Allocator, initial_index: K) Self {
             return .{
                 .allocator = allocator,
                 .vertices = std.AutoHashMap(K, T).init(allocator),
-                .adjacency_lists = std.AutoHashMap(K, std.ArrayList(K)).init(allocator),
+                .adjacency_lists = std.AutoHashMap(K, std.AutoHashMap(K, void)).init(allocator),
                 .next_vertex_index = initial_index,
             };
         }
@@ -32,7 +32,7 @@ pub fn Graph(comptime K: type, comptime T: type) type {
         pub fn addVertex(self: *Self, data: T) !K {
             // Consider using `getOrPut` to avoid clobbering data
             try self.vertices.put(self.next_vertex_index, data);
-            try self.adjacency_lists.put(self.next_vertex_index, std.ArrayList(K).init(self.allocator));
+            try self.adjacency_lists.put(self.next_vertex_index, std.AutoHashMap(K, void).init(self.allocator));
             self.next_vertex_index += 1;
             return self.next_vertex_index;
         }
@@ -46,10 +46,9 @@ pub fn Graph(comptime K: type, comptime T: type) type {
         }
 
         pub fn hasEdge(self: *Self, v1: K, v2: K) bool {
-            if (self.adjacency_lists.get(v1)) |vertex_adjacency_list| {
-                for (vertex_adjacency_list.items) |item| {
-                    if (item == v2) return true;
-                }
+            if (!self.adjacency_lists.contains(v1)) return false;
+            if (self.adjacency_lists.get(v1)) |v1_adj_list| {
+                if (v1_adj_list.get(v2) != null) return true;
             }
             return false;
         }
@@ -57,14 +56,14 @@ pub fn Graph(comptime K: type, comptime T: type) type {
         pub fn addEdge(self: *Self, v1: K, v2: K) !void {
             if (self.hasEdge(v1, v2)) return;
             if (self.adjacency_lists.getPtr(v1)) |vertex_adjacency_list| {
-                try vertex_adjacency_list.append(v2);
+                try vertex_adjacency_list.put(v2, {});
             }
         }
 
-        pub fn removeEdge(self: *Self, v1: K, v2_index: usize) !void {
-            if (!self.hasEdge(v1, v2_index)) return;
+        pub fn removeEdge(self: *Self, v1: K, v2: K) !void {
+            if (!self.hasEdge(v1, v2)) return;
             if (self.adjacency_lists.getPtr(v1)) |vertex_adjacency_list| {
-                _ = vertex_adjacency_list.swapRemove(v2_index);
+                _ = vertex_adjacency_list.remove(v2);
             }
         }
 
@@ -110,8 +109,6 @@ test "add and remove an edge" {
     try graph.addEdge(index1, index2);
     try testing.expect(graph.hasEdge(index1, index2));
 
-    // TODO: Review this test ~~~~~~~
-    // the `hasEdge` should, instead of taking an index to the vector, take the index OF the vector we are looking for
-    try graph.removeEdge(index1, 0);
-    try testing.expect(!graph.hasEdge(index1, 0));
+    try graph.removeEdge(index1, index2);
+    try testing.expect(!graph.hasEdge(index1, index2));
 }

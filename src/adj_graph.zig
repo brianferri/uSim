@@ -1,4 +1,5 @@
 const std = @import("std");
+const stat = @import("./stat.zig").stat;
 const testing = std.testing;
 
 pub fn Graph(comptime K: type, comptime T: type) type {
@@ -42,6 +43,13 @@ pub fn Graph(comptime K: type, comptime T: type) type {
         }
 
         pub fn removeVertex(self: *Self, index: K) bool {
+            if (!self.vertices.contains(index)) return false;
+            var lists = self.adjacency_lists.valueIterator();
+            // TODO: Investigate if this can be optimized to constant time (maybe by keeping track of the incident neighbors)
+            while (lists.next()) |list| {
+                _ = list.remove(index);
+            }
+            _ = self.adjacency_lists.remove(index);
             return self.vertices.remove(index);
         }
 
@@ -120,4 +128,84 @@ test "add and remove an edge" {
 
     try graph.removeEdge(index1, index2);
     try testing.expect(!graph.hasEdge(index1, index2));
+}
+
+pub fn main() !void {
+    const time = std.time;
+    const Timer = time.Timer;
+
+    var graph = Graph(usize, usize).init(std.heap.page_allocator, 0);
+    defer graph.deinit();
+
+    var file = try std.fs.cwd().createFile("out.csv", .{});
+    defer file.close();
+
+    _ = try file.write("iter,vertices,num_edges,iter_time,mem\n");
+
+    // var outer_timer = try Timer.start();
+    var timer = try Timer.start();
+    for (0..1_000_000) |i| {
+        // timer = try Timer.start();
+        _ = try graph.addVertex(i);
+        // std.debug.print("Adding index1: {d:.3}ms\n", .{
+        //     @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms,
+        // });
+
+        // timer = try Timer.start();
+        _ = try graph.addVertex(456);
+        // std.debug.print("Adding index2: {d:.3}ms\n", .{
+        //     @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms,
+        // });
+
+        var vertices1 = graph.vertices.keyIterator();
+
+        timer = try Timer.start();
+        while (vertices1.next()) |vertex1| {
+            // if (graph.getNeighbors(vertex1.*).?.count() >= 5) continue;
+            var vertices2 = graph.vertices.keyIterator();
+            while (vertices2.next()) |vertex2| {
+                // if (graph.getNeighbors(vertex2.*).?.count() >= 5) continue;
+                if (vertex1 == vertex2) continue;
+
+                // timer = try Timer.start();
+                // const v1n = graph.getNeighbors(vertex1.*);
+                // const v2n = graph.getNeighbors(vertex2.*);
+                // std.debug.print("Getting Neighbors: {d:.3}ms\n", .{
+                //     @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms,
+                // });
+
+                // std.debug.print("Vertex {d} Neighbors: {d}\n", .{ vertex1.*, v1n.?.count() });
+                // std.debug.print("Vertex {d} Neighbors: {d}\n", .{ vertex2.*, v2n.?.count() });
+
+                // timer = try Timer.start();
+                try graph.addEdge(vertex1.*, vertex2.*);
+                try graph.addEdge(vertex2.*, vertex1.*);
+                // std.debug.print("Adding edge: {d:.3}ms\n", .{
+                //     @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms,
+                // });
+            }
+        }
+        const iter_time = timer.read();
+        // std.debug.print("Adding edges between all vertices: {d:.3}ms\n", .{
+        //     @as(f64, @floatFromInt(iter_time)) / time.ns_per_ms,
+        // });
+        var buf: [1000]u8 = undefined;
+        const stats = try stat(&buf);
+        var edges: u64 = 0;
+        var adj_lists_val = graph.adjacency_lists.valueIterator();
+        while (adj_lists_val.next()) |e| {
+            edges += e.count();
+        }
+
+        _ = try file.write(try std.fmt.allocPrint(std.heap.page_allocator, "{d},{d},{d},{d},{d}\n", .{ i, graph.vertices.count(), edges, iter_time, stats.rss }));
+
+        // timer = try Timer.start();
+        // std.debug.print("{d} vertices\n", .{graph.vertices.count()});
+        // std.debug.print("Counting vertices: {d:.3}ms\n\n", .{
+        //     @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms,
+        // });
+    }
+    // std.debug.print("Time to complete tasks: {d:.3}ms\n", .{
+    //     @as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms,
+    // });
 }

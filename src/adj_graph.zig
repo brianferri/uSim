@@ -34,7 +34,7 @@ pub fn Graph(comptime K: type, comptime T: type) type {
             try self.vertices.put(self.next_vertex_index, data);
             try self.adjacency_lists.put(self.next_vertex_index, std.AutoHashMap(K, void).init(self.allocator));
             self.next_vertex_index += 1;
-            return self.next_vertex_index;
+            return self.next_vertex_index - 1;
         }
 
         pub fn getVertex(self: *Self, index: K) ?T {
@@ -71,7 +71,7 @@ pub fn Graph(comptime K: type, comptime T: type) type {
             try self.vertices.put(index, data);
         }
 
-        pub fn getNeighbors(self: *Self, index: K) ?std.ArrayList(K) {
+        pub fn getNeighbors(self: *Self, index: K) ?std.AutoHashMap(K, void) {
             return self.adjacency_lists.get(index);
         }
     };
@@ -86,7 +86,16 @@ test "add vertex" {
     var graph = Graph(usize, u32).init(testing.allocator, 0);
     defer graph.deinit();
     const index = try graph.addVertex(123);
-    try testing.expect(graph.getVertex(index - 1) == 123);
+    try testing.expect(graph.getVertex(index) == 123);
+}
+
+test "add and remove vertex" {
+    var graph = Graph(usize, u32).init(testing.allocator, 0);
+    defer graph.deinit();
+    const index = try graph.addVertex(123);
+    try testing.expect(graph.getVertex(index) == 123);
+    try testing.expect(graph.removeVertex(index) == true);
+    try testing.expect(graph.getVertex(index) == null);
 }
 
 test "add edge between two vertices" {

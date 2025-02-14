@@ -1,5 +1,5 @@
 pub const String = @import("string.zig");
-pub const Graph = @import("adj_graph.zig");
+pub const Graph = @import("Graph.zig");
 
 test {
     const std = @import("std");

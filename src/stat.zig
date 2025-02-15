@@ -150,7 +150,7 @@ const ProcStat = struct {
 /// Status information about the process.  This is used by
 /// [ps(1)](https://man7.org/linux/man-pages/man1/ps.1.html).
 /// It is defined in the kernel source file `fs/proc/array.c`.
-fn stat(buf: []u8) !ProcStat {
+pub fn stat(buf: []u8) !ProcStat {
     const stat_fd = try std.posix.open("/proc/self/stat", std.posix.O{ .ACCMODE = .RDONLY }, std.c.S.IRUSR);
     defer std.posix.close(stat_fd);
     const len = try std.posix.read(stat_fd, buf);

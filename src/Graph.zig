@@ -9,6 +9,7 @@ pub fn Graph(comptime K: type, comptime T: type) type {
 
         vertices: std.AutoHashMap(K, T),
         adjacency_lists: std.AutoHashMap(K, std.AutoHashMap(K, void)),
+        incidency_lists: std.AutoHashMap(K, std.AutoHashMap(K, void)),
         next_vertex_index: K,
 
         pub fn init(allocator: std.mem.Allocator, initial_index: K) Self {
@@ -16,6 +17,7 @@ pub fn Graph(comptime K: type, comptime T: type) type {
                 .allocator = allocator,
                 .vertices = std.AutoHashMap(K, T).init(allocator),
                 .adjacency_lists = std.AutoHashMap(K, std.AutoHashMap(K, void)).init(allocator),
+                .incidency_lists = std.AutoHashMap(K, std.AutoHashMap(K, void)).init(allocator),
                 .next_vertex_index = initial_index,
             };
         }
@@ -23,10 +25,15 @@ pub fn Graph(comptime K: type, comptime T: type) type {
         pub fn deinit(self: *Self) void {
             self.vertices.deinit();
             var adj_lists_iter = self.adjacency_lists.valueIterator();
-            while (adj_lists_iter.next()) |item| {
-                item.deinit();
+            while (adj_lists_iter.next()) |list| {
+                list.deinit();
             }
             self.adjacency_lists.deinit();
+            var inc_lists_iter = self.incidency_lists.valueIterator();
+            while (inc_lists_iter.next()) |list| {
+                list.deinit();
+            }
+            self.incidency_lists.deinit();
             self.* = undefined;
         }
 
@@ -34,6 +41,7 @@ pub fn Graph(comptime K: type, comptime T: type) type {
             // Consider using `getOrPut` to avoid clobbering data
             try self.vertices.put(self.next_vertex_index, data);
             try self.adjacency_lists.put(self.next_vertex_index, std.AutoHashMap(K, void).init(self.allocator));
+            try self.incidency_lists.put(self.next_vertex_index, std.AutoHashMap(K, void).init(self.allocator));
             self.next_vertex_index += 1;
             return self.next_vertex_index - 1;
         }
@@ -44,33 +52,44 @@ pub fn Graph(comptime K: type, comptime T: type) type {
 
         pub fn removeVertex(self: *Self, index: K) bool {
             if (!self.vertices.contains(index)) return false;
-            var lists = self.adjacency_lists.valueIterator();
-            // TODO: Investigate if this can be optimized to constant time (maybe by keeping track of the incident neighbors)
-            while (lists.next()) |list| {
-                _ = list.remove(index);
+            if (self.incidency_lists.get(index)) |i| {
+                var incident_vertexes = i.keyIterator();
+                while (incident_vertexes.next()) |incident_vertex| {
+                    if (self.adjacency_lists.getPtr(incident_vertex.*)) |adj_ptr|
+                        _ = adj_ptr.remove(index);
+                }
             }
             if (self.adjacency_lists.getPtr(index)) |list| list.deinit();
             return self.adjacency_lists.remove(index) and self.vertices.remove(index);
         }
 
+        /// Is directional
+        ///
+        /// Only checks if vertex `v1` is "pointing" to vertex `v2`
         pub fn hasEdge(self: *Self, v1: K, v2: K) bool {
-            if (self.adjacency_lists.get(v1)) |v1_adj_list| {
-                if (v1_adj_list.get(v2) != null) return true;
+            if (self.adjacency_lists.get(v1)) |v1_adjacency_list| {
+                if (v1_adjacency_list.get(v2) != null) return true;
             }
             return false;
         }
 
         pub fn addEdge(self: *Self, v1: K, v2: K) !void {
             if (self.hasEdge(v1, v2)) return;
-            if (self.adjacency_lists.getPtr(v1)) |vertex_adjacency_list| {
-                try vertex_adjacency_list.put(v2, {});
+            if (self.adjacency_lists.getPtr(v1)) |v1_adjacency_list| {
+                try v1_adjacency_list.put(v2, {});
+            }
+            if (self.incidency_lists.getPtr(v2)) |v2_incidency_list| {
+                try v2_incidency_list.put(v1, {});
             }
         }
 
         pub fn removeEdge(self: *Self, v1: K, v2: K) !void {
             if (!self.hasEdge(v1, v2)) return;
-            if (self.adjacency_lists.getPtr(v1)) |vertex_adjacency_list| {
-                _ = vertex_adjacency_list.remove(v2);
+            if (self.adjacency_lists.getPtr(v1)) |v1_adjacency_list| {
+                _ = v1_adjacency_list.remove(v2);
+            }
+            if (self.incidency_lists.getPtr(v2)) |v2_incidency_list| {
+                _ = v2_incidency_list.remove(v1);
             }
         }
 
@@ -147,9 +166,13 @@ test "add vertexes and edges, remove vertex, test for edges" {
     try graph.addEdge(index1, index2);
     try testing.expect(graph.hasEdge(index1, index2));
 
+    try graph.addEdge(index2, index1);
+    try testing.expect(graph.hasEdge(index2, index1));
+
     try testing.expect(graph.removeVertex(index1));
     try testing.expect(graph.getVertex(index1) == null);
     try testing.expect(!graph.hasEdge(index1, index2));
+    try testing.expect(!graph.hasEdge(index2, index1));
 }
 
 pub fn main() !void {

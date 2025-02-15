@@ -92,14 +92,18 @@ test "graph initialization" {
 test "add vertex" {
     var graph = Graph(usize, u32).init(testing.allocator, 0);
     defer graph.deinit();
+
     const index = try graph.addVertex(123);
+
     try testing.expect(graph.getVertex(index) == 123);
 }
 
 test "add and remove vertex" {
     var graph = Graph(usize, u32).init(testing.allocator, 0);
     defer graph.deinit();
+
     const index = try graph.addVertex(123);
+
     try testing.expect(graph.getVertex(index) == 123);
     try testing.expect(graph.removeVertex(index) == true);
     try testing.expect(graph.getVertex(index) == null);
@@ -108,24 +112,43 @@ test "add and remove vertex" {
 test "add edge between two vertices" {
     var graph = Graph(usize, u32).init(testing.allocator, 0);
     defer graph.deinit();
+
     const index1 = try graph.addVertex(123);
     const index2 = try graph.addVertex(456);
-    const has_edge_before = graph.hasEdge(index1, index2);
-    try testing.expect(!has_edge_before);
+
+    try testing.expect(!graph.hasEdge(index1, index2));
     try graph.addEdge(index1, index2);
-    const has_edge_after = graph.hasEdge(index1, index2);
-    try testing.expect(has_edge_after);
+    try testing.expect(graph.hasEdge(index1, index2));
 }
 
 test "add and remove an edge" {
     var graph = Graph(usize, u32).init(testing.allocator, 0);
     defer graph.deinit();
+
     const index1 = try graph.addVertex(123);
     const index2 = try graph.addVertex(456);
+
     try graph.addEdge(index1, index2);
     try testing.expect(graph.hasEdge(index1, index2));
 
     try graph.removeEdge(index1, index2);
+    try testing.expect(!graph.hasEdge(index1, index2));
+}
+
+test "add vertexes and edges, remove vertex, test for edges" {
+    var graph = Graph(usize, u32).init(testing.allocator, 0);
+    defer graph.deinit();
+
+    const index1 = try graph.addVertex(123);
+    try testing.expect(graph.getVertex(index1) == 123);
+    const index2 = try graph.addVertex(456);
+    try testing.expect(graph.getVertex(index2) == 456);
+
+    try graph.addEdge(index1, index2);
+    try testing.expect(graph.hasEdge(index1, index2));
+
+    try testing.expect(graph.removeVertex(index1));
+    try testing.expect(graph.getVertex(index1) == null);
     try testing.expect(!graph.hasEdge(index1, index2));
 }
 

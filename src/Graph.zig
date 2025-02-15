@@ -49,8 +49,8 @@ pub fn Graph(comptime K: type, comptime T: type) type {
             while (lists.next()) |list| {
                 _ = list.remove(index);
             }
-            _ = self.adjacency_lists.remove(index);
-            return self.vertices.remove(index);
+            if (self.adjacency_lists.getPtr(index)) |list| list.deinit();
+            return self.adjacency_lists.remove(index) and self.vertices.remove(index);
         }
 
         pub fn hasEdge(self: *Self, v1: K, v2: K) bool {

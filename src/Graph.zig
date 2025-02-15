@@ -54,7 +54,6 @@ pub fn Graph(comptime K: type, comptime T: type) type {
         }
 
         pub fn hasEdge(self: *Self, v1: K, v2: K) bool {
-            if (!self.adjacency_lists.contains(v1)) return false;
             if (self.adjacency_lists.get(v1)) |v1_adj_list| {
                 if (v1_adj_list.get(v2) != null) return true;
             }

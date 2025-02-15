@@ -163,9 +163,11 @@ test "add vertexes and edges, remove vertex, test for edges" {
     const index2 = try graph.addVertex(456);
     try testing.expect(graph.getVertex(index2) == 456);
 
+    try testing.expect(!graph.hasEdge(index1, index2));
     try graph.addEdge(index1, index2);
     try testing.expect(graph.hasEdge(index1, index2));
 
+    try testing.expect(!graph.hasEdge(index2, index1));
     try graph.addEdge(index2, index1);
     try testing.expect(graph.hasEdge(index2, index1));
 

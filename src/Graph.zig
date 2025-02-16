@@ -2,84 +2,171 @@ const std = @import("std");
 const stat = @import("./stat.zig").stat;
 const testing = std.testing;
 
+fn Node(comptime K: type, comptime T: type) type {
+    return struct {
+        const Self = @This();
+
+        const FakeSet = std.AutoHashMap(K, void);
+
+        data: T,
+        adjacency_set: FakeSet,
+        incidency_set: FakeSet,
+
+        pub fn init(allocator: std.mem.Allocator, data: T) Self {
+            return .{
+                .data = data,
+                .adjacency_set = FakeSet.init(allocator),
+                .incidency_set = FakeSet.init(allocator),
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            self.adjacency_set.deinit();
+            self.incidency_set.deinit();
+            self.* = undefined;
+        }
+
+        pub fn pointsTo(self: *Self, vertex: K) bool {
+            return self.adjacency_set.contains(vertex);
+        }
+
+        pub fn pointedBy(self: *Self, vertex: K) bool {
+            return self.incidency_set.contains(vertex);
+        }
+
+        pub fn addAdjEdge(self: *Self, vertex: K) !void {
+            try self.adjacency_set.put(vertex, {});
+        }
+
+        pub fn removeAdjEdge(self: *Self, vertex: K) !void {
+            _ = self.adjacency_set.remove(vertex);
+        }
+
+        pub fn addIncEdge(self: *Self, vertex: K) !void {
+            try self.incidency_set.put(vertex, {});
+        }
+
+        pub fn removeIncEdge(self: *Self, vertex: K) !void {
+            _ = self.incidency_set.remove(vertex);
+        }
+    };
+}
+
 pub fn Graph(comptime K: type, comptime T: type) type {
     return struct {
+        const Vertex = Node(K, T);
+        const Vertices = std.AutoHashMap(K, *Vertex);
         const Self = @This();
         allocator: std.mem.Allocator,
 
-        vertices: std.AutoHashMap(K, T),
-        adjacency_lists: std.AutoHashMap(K, std.AutoHashMap(K, void)),
+        vertices: Vertices,
         next_vertex_index: K,
 
         pub fn init(allocator: std.mem.Allocator, initial_index: K) Self {
             return .{
                 .allocator = allocator,
-                .vertices = std.AutoHashMap(K, T).init(allocator),
-                .adjacency_lists = std.AutoHashMap(K, std.AutoHashMap(K, void)).init(allocator),
+                .vertices = Vertices.init(allocator),
                 .next_vertex_index = initial_index,
             };
         }
 
         pub fn deinit(self: *Self) void {
-            self.vertices.deinit();
-            var adj_lists_iter = self.adjacency_lists.valueIterator();
-            while (adj_lists_iter.next()) |item| {
-                item.deinit();
+            var vertex_iterator = self.vertices.valueIterator();
+
+            while (vertex_iterator.next()) |vertex| {
+                vertex.*.deinit();
+                self.allocator.destroy(vertex.*);
             }
-            self.adjacency_lists.deinit();
+
+            self.vertices.deinit();
             self.* = undefined;
         }
 
         pub fn addVertex(self: *Self, data: T) !K {
-            // Consider using `getOrPut` to avoid clobbering data
-            try self.vertices.put(self.next_vertex_index, data);
-            try self.adjacency_lists.put(self.next_vertex_index, std.AutoHashMap(K, void).init(self.allocator));
+            const node = try self.allocator.create(Vertex);
+            node.* = Vertex.init(self.allocator, data);
+
+            try self.vertices.put(self.next_vertex_index, node);
             self.next_vertex_index += 1;
             return self.next_vertex_index - 1;
         }
 
-        pub fn getVertex(self: *Self, index: K) ?T {
+        pub fn getVertex(self: *Self, index: K) ?*Vertex {
             return self.vertices.get(index);
         }
 
-        pub fn removeVertex(self: *Self, index: K) bool {
-            if (!self.vertices.contains(index)) return false;
-            var lists = self.adjacency_lists.valueIterator();
-            // TODO: Investigate if this can be optimized to constant time (maybe by keeping track of the incident neighbors)
-            while (lists.next()) |list| {
-                _ = list.remove(index);
-            }
-            if (self.adjacency_lists.getPtr(index)) |list| list.deinit();
-            return self.adjacency_lists.remove(index) and self.vertices.remove(index);
+        pub fn getVertexData(self: *Self, index: K) ?T {
+            return if (self.getVertex(index)) |v| v.*.data else null;
         }
 
-        pub fn hasEdge(self: *Self, v1: K, v2: K) bool {
-            if (self.adjacency_lists.get(v1)) |v1_adj_list| {
-                if (v1_adj_list.get(v2) != null) return true;
+        pub fn removeVertex(self: *Self, index: K) bool {
+            if (self.getVertex(index)) |vertex| {
+                var vertex_iterator = self.vertices.iterator();
+                while (vertex_iterator.next()) |entry| {
+                    try self.removeEdge(entry.key_ptr.*, index);
+                }
+
+                vertex.deinit();
+                self.allocator.destroy(vertex);
+
+                return self.vertices.remove(index);
             }
+
+            return false;
+        }
+
+        /// Is directional
+        ///
+        /// Only checks if vertex `v1` is "pointing" to vertex `v2`
+        pub fn hasAdjEdge(self: *Self, v1: K, v2: K) bool {
+            if (self.getVertex(v1)) |v| {
+                return v.pointsTo(v2);
+            }
+
+            return false;
+        }
+
+        /// Is directional
+        ///
+        /// Only checks if the vertex `v1` is being pointed by vertex `v2`
+        pub fn hasIncEdge(self: *Self, v1: K, v2: K) bool {
+            if (self.getVertex(v1)) |v| {
+                return v.pointedBy(v2);
+            }
+
             return false;
         }
 
         pub fn addEdge(self: *Self, v1: K, v2: K) !void {
-            if (self.hasEdge(v1, v2)) return;
-            if (self.adjacency_lists.getPtr(v1)) |vertex_adjacency_list| {
-                try vertex_adjacency_list.put(v2, {});
+            //? This check is here to help cache misses???
+            // TODO: Verify if the above is true
+            if (self.hasAdjEdge(v1, v2) or self.hasIncEdge(v2, v1)) return;
+
+            if (self.getVertex(v1)) |v| {
+                try v.addAdjEdge(v2);
+            }
+
+            if (self.getVertex(v2)) |v| {
+                try v.addIncEdge(v1);
             }
         }
 
         pub fn removeEdge(self: *Self, v1: K, v2: K) !void {
-            if (!self.hasEdge(v1, v2)) return;
-            if (self.adjacency_lists.getPtr(v1)) |vertex_adjacency_list| {
-                _ = vertex_adjacency_list.remove(v2);
+            //? This check is here to help cache misses???
+            // TODO: Verify if the above is true
+            if (!self.hasAdjEdge(v1, v2) or !self.hasIncEdge(v2, v1)) return;
+
+            if (self.getVertex(v1)) |v| {
+                try v.removeAdjEdge(v2);
+            }
+
+            if (self.getVertex(v2)) |v| {
+                try v.removeIncEdge(v1);
             }
         }
 
         pub fn setVertex(self: *Self, index: K, data: T) !void {
             try self.vertices.put(index, data);
-        }
-
-        pub fn getNeighbors(self: *Self, index: K) ?std.AutoHashMap(K, void) {
-            return self.adjacency_lists.get(index);
         }
     };
 }
@@ -95,7 +182,7 @@ test "add vertex" {
 
     const index = try graph.addVertex(123);
 
-    try testing.expect(graph.getVertex(index) == 123);
+    try testing.expect(graph.getVertexData(index) == 123);
 }
 
 test "add and remove vertex" {
@@ -104,9 +191,9 @@ test "add and remove vertex" {
 
     const index = try graph.addVertex(123);
 
-    try testing.expect(graph.getVertex(index) == 123);
+    try testing.expect(graph.getVertexData(index) == 123);
     try testing.expect(graph.removeVertex(index) == true);
-    try testing.expect(graph.getVertex(index) == null);
+    try testing.expect(graph.getVertexData(index) == null);
 }
 
 test "add edge between two vertices" {
@@ -116,9 +203,9 @@ test "add edge between two vertices" {
     const index1 = try graph.addVertex(123);
     const index2 = try graph.addVertex(456);
 
-    try testing.expect(!graph.hasEdge(index1, index2));
+    try testing.expect(!graph.hasAdjEdge(index1, index2));
     try graph.addEdge(index1, index2);
-    try testing.expect(graph.hasEdge(index1, index2));
+    try testing.expect(graph.hasAdjEdge(index1, index2));
 }
 
 test "add and remove an edge" {
@@ -129,10 +216,10 @@ test "add and remove an edge" {
     const index2 = try graph.addVertex(456);
 
     try graph.addEdge(index1, index2);
-    try testing.expect(graph.hasEdge(index1, index2));
+    try testing.expect(graph.hasAdjEdge(index1, index2));
 
     try graph.removeEdge(index1, index2);
-    try testing.expect(!graph.hasEdge(index1, index2));
+    try testing.expect(!graph.hasAdjEdge(index1, index2));
 }
 
 test "add vertexes and edges, remove vertex, test for edges" {
@@ -140,23 +227,52 @@ test "add vertexes and edges, remove vertex, test for edges" {
     defer graph.deinit();
 
     const index1 = try graph.addVertex(123);
-    try testing.expect(graph.getVertex(index1) == 123);
+    try testing.expect(graph.getVertexData(index1) == 123);
     const index2 = try graph.addVertex(456);
-    try testing.expect(graph.getVertex(index2) == 456);
+    try testing.expect(graph.getVertexData(index2) == 456);
 
+    try testing.expect(!graph.hasAdjEdge(index1, index2));
     try graph.addEdge(index1, index2);
-    try testing.expect(graph.hasEdge(index1, index2));
+    try testing.expect(graph.hasAdjEdge(index1, index2));
+
+    try testing.expect(!graph.hasAdjEdge(index2, index1));
+    try graph.addEdge(index2, index1);
+    try testing.expect(graph.hasAdjEdge(index2, index1));
 
     try testing.expect(graph.removeVertex(index1));
-    try testing.expect(graph.getVertex(index1) == null);
-    try testing.expect(!graph.hasEdge(index1, index2));
+    try testing.expect(graph.getVertexData(index1) == null);
+    try testing.expect(!graph.hasAdjEdge(index1, index2));
+    try testing.expect(!graph.hasAdjEdge(index2, index1));
+}
+
+test "getting neighbors" {
+    var graph = Graph(usize, u32).init(testing.allocator, 0);
+    defer graph.deinit();
+
+    const index1 = try graph.addVertex(123);
+    try testing.expect(graph.getVertexData(index1) == 123);
+    const index2 = try graph.addVertex(456);
+    try testing.expect(graph.getVertexData(index2) == 456);
+
+    try testing.expect(!graph.hasAdjEdge(index1, index2));
+    try graph.addEdge(index1, index2);
+    try testing.expect(graph.hasAdjEdge(index1, index2));
+
+    try testing.expect(graph.getVertex(index1).?.pointsTo(index2));
+    try testing.expect(!graph.getVertex(index2).?.pointsTo(index1));
+
+    try testing.expect(graph.getVertex(index2).?.pointedBy(index1));
+    try testing.expect(!graph.getVertex(index1).?.pointedBy(index2));
 }
 
 pub fn main() !void {
     const time = std.time;
     const Timer = time.Timer;
 
-    var graph = Graph(usize, usize).init(std.heap.page_allocator, 0);
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    var graph = Graph(usize, usize).init(allocator, 0);
     defer graph.deinit();
 
     var file = try std.fs.cwd().createFile("out.csv", .{});
@@ -183,15 +299,15 @@ pub fn main() !void {
 
         timer = try Timer.start();
         while (vertices1.next()) |vertex1| {
-            // if (graph.getNeighbors(vertex1.*).?.count() >= 5) continue;
+            if (graph.getVertex(vertex1.*).?.adjacency_set.count() >= 5) continue;
             var vertices2 = graph.vertices.keyIterator();
             while (vertices2.next()) |vertex2| {
-                // if (graph.getNeighbors(vertex2.*).?.count() >= 5) continue;
+                if (graph.getVertex(vertex2.*).?.adjacency_set.count() >= 5) continue;
                 if (vertex1 == vertex2) continue;
 
                 // timer = try Timer.start();
-                // const v1n = graph.getNeighbors(vertex1.*);
-                // const v2n = graph.getNeighbors(vertex2.*);
+                // const v1n = graph.getVertex(vertex1.*).?.adjacency_set;
+                // const v2n = graph.getVertex(vertex2.*).?.adjacency_set;
                 // std.debug.print("Getting Neighbors: {d:.3}ms\n", .{
                 //     @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms,
                 // });
@@ -214,9 +330,10 @@ pub fn main() !void {
         var buf: [1000]u8 = undefined;
         const stats = try stat(&buf);
         var edges: u64 = 0;
-        var adj_lists_val = graph.adjacency_lists.valueIterator();
-        while (adj_lists_val.next()) |e| {
-            edges += e.count();
+
+        var vertices = graph.vertices.valueIterator();
+        while (vertices.next()) |v| {
+            edges += v.*.adjacency_set.count();
         }
 
         _ = try file.write(try std.fmt.allocPrint(std.heap.page_allocator, "{d},{d},{d},{d},{d}\n", .{ i, graph.vertices.count(), edges, iter_time, stats.rss }));

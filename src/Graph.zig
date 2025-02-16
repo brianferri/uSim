@@ -52,14 +52,13 @@ pub fn Graph(comptime K: type, comptime T: type) type {
 
         pub fn removeVertex(self: *Self, index: K) bool {
             if (!self.vertices.contains(index)) return false;
-            if (self.incidency_lists.get(index)) |i| {
-                var incident_vertexes = i.keyIterator();
-                while (incident_vertexes.next()) |incident_vertex| {
-                    if (self.adjacency_lists.getPtr(incident_vertex.*)) |adj_ptr|
-                        _ = adj_ptr.remove(index);
-                }
+            var incident_vertexes = self.getIncNeighbors(index).keyIterator();
+            while (incident_vertexes.next()) |incident_vertex| {
+                var list = self.getAdjNeighbors(incident_vertex.*);
+                _ = list.remove(index);
             }
-            if (self.adjacency_lists.getPtr(index)) |list| list.deinit();
+            var adj_list = self.getAdjNeighbors(index);
+            adj_list.deinit();
             return self.adjacency_lists.remove(index) and self.vertices.remove(index);
         }
 

@@ -2,60 +2,55 @@ const std = @import("std");
 const stat = @import("./stat.zig").stat;
 const testing = std.testing;
 
-fn Node(comptime K: type, comptime T: type) type {
-    return struct {
-        const Self = @This();
-
-        const FakeSet = std.AutoHashMap(K, void);
-
-        data: T,
-        adjacency_set: FakeSet,
-        incidency_set: FakeSet,
-
-        pub fn init(allocator: std.mem.Allocator, data: T) Self {
-            return .{
-                .data = data,
-                .adjacency_set = FakeSet.init(allocator),
-                .incidency_set = FakeSet.init(allocator),
-            };
-        }
-
-        pub fn deinit(self: *Self) void {
-            self.adjacency_set.deinit();
-            self.incidency_set.deinit();
-            self.* = undefined;
-        }
-
-        pub fn pointsTo(self: *Self, vertex: K) bool {
-            return self.adjacency_set.contains(vertex);
-        }
-
-        pub fn pointedBy(self: *Self, vertex: K) bool {
-            return self.incidency_set.contains(vertex);
-        }
-
-        pub fn addAdjEdge(self: *Self, vertex: K) !void {
-            try self.adjacency_set.put(vertex, {});
-        }
-
-        pub fn removeAdjEdge(self: *Self, vertex: K) !void {
-            _ = self.adjacency_set.remove(vertex);
-        }
-
-        pub fn addIncEdge(self: *Self, vertex: K) !void {
-            try self.incidency_set.put(vertex, {});
-        }
-
-        pub fn removeIncEdge(self: *Self, vertex: K) !void {
-            _ = self.incidency_set.remove(vertex);
-        }
-    };
-}
-
 pub fn Graph(comptime K: type, comptime T: type) type {
     return struct {
-        const Vertex = Node(K, T);
-        const Vertices = std.AutoHashMap(K, *Vertex);
+        const Node = struct {
+            const FakeSet = std.AutoHashMap(K, void);
+
+            data: T,
+            adjacency_set: FakeSet,
+            incidency_set: FakeSet,
+
+            pub fn init(allocator: std.mem.Allocator, data: T) Node {
+                return .{
+                    .data = data,
+                    .adjacency_set = FakeSet.init(allocator),
+                    .incidency_set = FakeSet.init(allocator),
+                };
+            }
+
+            pub fn deinit(self: *Node) void {
+                self.adjacency_set.deinit();
+                self.incidency_set.deinit();
+                self.* = undefined;
+            }
+
+            pub fn pointsTo(self: *Node, vertex: K) bool {
+                return self.adjacency_set.contains(vertex);
+            }
+
+            pub fn pointedBy(self: *Node, vertex: K) bool {
+                return self.incidency_set.contains(vertex);
+            }
+
+            pub fn addAdjEdge(self: *Node, vertex: K) !void {
+                try self.adjacency_set.put(vertex, {});
+            }
+
+            pub fn removeAdjEdge(self: *Node, vertex: K) !void {
+                _ = self.adjacency_set.remove(vertex);
+            }
+
+            pub fn addIncEdge(self: *Node, vertex: K) !void {
+                try self.incidency_set.put(vertex, {});
+            }
+
+            pub fn removeIncEdge(self: *Node, vertex: K) !void {
+                _ = self.incidency_set.remove(vertex);
+            }
+        };
+
+        const Vertices = std.AutoHashMap(K, *Node);
         const Self = @This();
         allocator: std.mem.Allocator,
 
@@ -83,15 +78,15 @@ pub fn Graph(comptime K: type, comptime T: type) type {
         }
 
         pub fn addVertex(self: *Self, data: T) !K {
-            const node = try self.allocator.create(Vertex);
-            node.* = Vertex.init(self.allocator, data);
+            const node = try self.allocator.create(Node);
+            node.* = Node.init(self.allocator, data);
 
             try self.vertices.put(self.next_vertex_index, node);
             self.next_vertex_index += 1;
             return self.next_vertex_index - 1;
         }
 
-        pub fn getVertex(self: *Self, index: K) ?*Vertex {
+        pub fn getVertex(self: *Self, index: K) ?*Node {
             return self.vertices.get(index);
         }
 
@@ -299,10 +294,10 @@ pub fn main() !void {
 
         timer = try Timer.start();
         while (vertices1.next()) |vertex1| {
-            if (graph.getVertex(vertex1.*).?.adjacency_set.count() >= 5) continue;
+            // if (graph.getVertex(vertex1.*).?.adjacency_set.count() >= 5) continue;
             var vertices2 = graph.vertices.keyIterator();
             while (vertices2.next()) |vertex2| {
-                if (graph.getVertex(vertex2.*).?.adjacency_set.count() >= 5) continue;
+                // if (graph.getVertex(vertex2.*).?.adjacency_set.count() >= 5) continue;
                 if (vertex1 == vertex2) continue;
 
                 // timer = try Timer.start();

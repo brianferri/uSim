@@ -97,8 +97,12 @@ pub fn Graph(comptime K: type, comptime T: type) type {
             try self.vertices.put(index, data);
         }
 
-        pub fn getNeighbors(self: *Self, index: K) ?std.AutoHashMap(K, void) {
-            return self.adjacency_lists.get(index);
+        pub fn getAdjNeighbors(self: *Self, index: K) std.AutoHashMap(K, void) {
+            return if (self.adjacency_lists.get(index)) |adjacency_list| return adjacency_list else unreachable;
+        }
+
+        pub fn getIncNeighbors(self: *Self, index: K) std.AutoHashMap(K, void) {
+            return if (self.incidency_lists.get(index)) |incidency_list| return incidency_list else unreachable;
         }
     };
 }
@@ -175,6 +179,26 @@ test "add vertexes and edges, remove vertex, test for edges" {
     try testing.expect(graph.getVertex(index1) == null);
     try testing.expect(!graph.hasEdge(index1, index2));
     try testing.expect(!graph.hasEdge(index2, index1));
+}
+
+test "getting neighbors" {
+    var graph = Graph(usize, u32).init(testing.allocator, 0);
+    defer graph.deinit();
+
+    const index1 = try graph.addVertex(123);
+    try testing.expect(graph.getVertex(index1) == 123);
+    const index2 = try graph.addVertex(456);
+    try testing.expect(graph.getVertex(index2) == 456);
+
+    try testing.expect(!graph.hasEdge(index1, index2));
+    try graph.addEdge(index1, index2);
+    try testing.expect(graph.hasEdge(index1, index2));
+
+    try testing.expect(graph.getAdjNeighbors(index1).contains(index2));
+    try testing.expect(!graph.getAdjNeighbors(index2).contains(index1));
+
+    try testing.expect(graph.getIncNeighbors(index2).contains(index1));
+    try testing.expect(!graph.getIncNeighbors(index1).contains(index2));
 }
 
 pub fn main() !void {

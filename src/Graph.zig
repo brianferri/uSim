@@ -52,6 +52,11 @@ pub fn Graph(comptime K: type, comptime T: type) type {
 
         pub fn removeVertex(self: *Self, index: K) bool {
             if (!self.vertices.contains(index)) return false;
+            var adjacent_vertexes = self.getAdjNeighbors(index).keyIterator();
+            while (adjacent_vertexes.next()) |adjacent_vertex| {
+                var list = self.getIncNeighbors(adjacent_vertex.*);
+                _ = list.remove(index);
+            }
             var incident_vertexes = self.getIncNeighbors(index).keyIterator();
             while (incident_vertexes.next()) |incident_vertex| {
                 var list = self.getAdjNeighbors(incident_vertex.*);

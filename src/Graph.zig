@@ -260,6 +260,18 @@ test "getting neighbors" {
     try testing.expect(!graph.getVertex(index1).?.pointedBy(index2));
 }
 
+test "graph in a graph" {
+    var graph = Graph(usize, Graph(usize, u32)).init(testing.allocator, 0);
+    defer graph.deinit();
+
+    const index = try graph.addVertex(Graph(usize, u32).init(testing.allocator, 0));
+    var inner_graph_data: Graph(usize, u32) = graph.getVertexData(index).?;
+    defer inner_graph_data.deinit();
+
+    const inner_index = try inner_graph_data.addVertex(123);
+    try testing.expect(inner_graph_data.getVertexData(inner_index) == 123);
+}
+
 pub fn main() !void {
     const time = std.time;
     const Timer = time.Timer;

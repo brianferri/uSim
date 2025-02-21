@@ -20,9 +20,9 @@ pub fn main() !void {
 
     _ = try file.write("iter,vertices,num_edges,iter_time,mem\n");
 
-    // var outer_timer = try Timer.start();
+    var outer_timer = try Timer.start();
     var timer = try Timer.start();
-    for (0..1_000_000) |i| {
+    for (0..450) |i| {
         // timer = try Timer.start();
         _ = try graph.addVertex(i);
         // std.debug.print("Adding index1: {d:.3}ms\n", .{
@@ -63,7 +63,7 @@ pub fn main() !void {
                 // });
             }
         }
-        const iter_time = timer.read();
+        const iter_time = @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms;
         // std.debug.print("Adding edges between all vertices: {d:.3}ms\n", .{
         //     @as(f64, @floatFromInt(iter_time)) / time.ns_per_ms,
         // });
@@ -84,7 +84,7 @@ pub fn main() !void {
         //     @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms,
         // });
     }
-    // std.debug.print("Time to complete tasks: {d:.3}ms\n", .{
-    //     @as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms,
-    // });
+    std.debug.print("Time to complete tasks: {d:.3}ms\n", .{
+        @as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms,
+    });
 }

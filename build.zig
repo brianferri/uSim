@@ -34,7 +34,7 @@ pub fn build(b: *std.Build) void {
     const asm_step = b.step("asm", "Emit assembly file");
     const awf = b.addWriteFiles();
     awf.step.dependOn(b.getInstallStep());
-    awf.addCopyFileToSource(lib.getEmittedAsm(), "main.asm");
+    awf.addCopyFileToSource(exe.getEmittedAsm(), "main.asm");
     asm_step.dependOn(&awf.step);
 
     const exe_check = b.addStaticLibrary(lib_options);

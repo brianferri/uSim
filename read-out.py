@@ -1,55 +1,32 @@
 import matplotlib.pyplot as plt
 import csv
 
-# Read data from file
-data = {"iter": [], "vertices": [], "num_edges": [], "iter_time": [], "mem": []}
-with open('out.csv', 'r') as file:
-    reader = csv.reader(file)
-    next(reader)  # Skip header
-    for row in reader:
-        data["iter"].append(int(row[0]))
-        data["vertices"].append(int(row[1]))
-        data["num_edges"].append(int(row[2]))
-        data["iter_time"].append(float(row[3]))
-        data["mem"].append(int(row[4]))
+def read_csv_data(filename: str):
+    with open(filename, 'r') as file:
+        reader = csv.reader(file)
+        columns = next(reader)
+        data = {col: [] for col in columns}
+        for row in reader:
+            for i, col in enumerate(columns):
+                data[col].append(int(row[i]) if col != "iter_time" else float(row[i]))
+    return data, columns
 
-# Create subplots
-fig, ax1 = plt.subplots()
+def plot_data(data: dict[str, list], x_col: list[str], y_cols: list[str], colors: list[str]):
+    fig, ax1 = plt.subplots()
+    ax1.set_xlabel(x_col)
+    ax1.grid(True, linestyle='--', alpha=0.6)
+    axes = [ax1]
+    for i, (y_col, color) in enumerate(zip(y_cols, colors)):
+        ax = ax1 if i == 0 else ax1.twinx()
+        ax.spines['right'].set_position(('outward', i * 60))
+        ax.set_ylabel(y_col, color=color)
+        ax.plot(data[x_col], data[y_col], marker='o', linestyle='-', color=color, label=y_col)
+        ax.tick_params(axis='y', labelcolor=color)
+        axes.append(ax)
+    plt.title("Metrics Comparison")
+    fig.tight_layout()
+    plt.legend(loc='upper left')
+    plt.show()
 
-# Plot iteration time
-color = 'tab:red'
-ax1.set_xlabel('Iteration')
-ax1.set_ylabel('Iteration Time (ms)', color=color)
-ax1.plot(data["iter"], data["iter_time"], marker='o', linestyle='-', color=color, label='Iteration Time')
-ax1.tick_params(axis='y', labelcolor=color)
-ax1.grid(True, linestyle='--', alpha=0.6)
-
-# Create a second y-axis for vertices
-ax2 = ax1.twinx()
-color = 'tab:blue'
-ax2.set_ylabel('Vertices', color=color)
-ax2.plot(data["iter"], data["vertices"], marker='s', linestyle='--', color=color, label='Vertices')
-ax2.tick_params(axis='y', labelcolor=color)
-
-# Create a third y-axis for memory
-ax3 = ax1.twinx()
-color = 'tab:green'
-ax3.spines['right'].set_position(('outward', 60))
-ax3.set_ylabel('Memory', color=color)
-ax3.plot(data["iter"], data["mem"], marker='s', linestyle='--', color=color, label='Memory')
-ax3.tick_params(axis='y', labelcolor=color)
-
-# Create a fourth y-axis for number of edges
-ax4 = ax1.twinx()
-color = 'tab:purple'
-ax4.spines['right'].set_position(('outward', 120))
-ax4.set_ylabel('Number of Edges', color=color)
-ax4.plot(data["iter"], data["num_edges"], marker='^', linestyle='-.', color=color, label='Edges')
-ax4.tick_params(axis='y', labelcolor=color)
-
-# Add title
-plt.title("Iteration vs Iteration Time, Vertices, Memory, and Edges")
-fig.tight_layout()
-
-# Show plot
-plt.show()
+data, columns = read_csv_data('out.csv')
+plot_data(data, columns[0], columns[1:], ['tab:red', 'tab:blue', 'tab:green', 'tab:purple'])

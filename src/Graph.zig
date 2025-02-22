@@ -132,8 +132,7 @@ pub fn Graph(comptime K: type, comptime T: type) type {
         }
 
         pub fn addEdge(self: *Self, v1: K, v2: K) !void {
-            //? This check is here to help cache misses???
-            // TODO: Verify if the above is true
+            //? Check helps branch prediction
             if (self.hasAdjEdge(v1, v2) or self.hasIncEdge(v2, v1)) return;
 
             if (self.getVertex(v1)) |v| {
@@ -146,8 +145,7 @@ pub fn Graph(comptime K: type, comptime T: type) type {
         }
 
         pub fn removeEdge(self: *Self, v1: K, v2: K) !void {
-            //? This check is here to help cache misses???
-            // TODO: Verify if the above is true
+            //? Check helps branch prediction
             if (!self.hasAdjEdge(v1, v2) or !self.hasIncEdge(v2, v1)) return;
 
             if (self.getVertex(v1)) |v| {

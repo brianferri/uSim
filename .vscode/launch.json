@@ -5,7 +5,7 @@
       "type": "lldb",
       "request": "launch",
       "preLaunchTask": "build:debug",
-      "program": "${workspaceFolder}/zig-out/bin/zuws"
+      "program": "${workspaceFolder}/zig-out/bin/UniverseLib"
     },
     {
       "name": "(cppdbg-lldb) Launch - Debug",
@@ -13,7 +13,7 @@
       "request": "launch",
       "preLaunchTask": "build:debug",
       "cwd": "${workspaceFolder}",
-      "program": "${workspaceFolder}/zig-out/bin/zuws",
+      "program": "${workspaceFolder}/zig-out/bin/UniverseLib",
       "MIMode": "lldb"
     },
     {
@@ -21,7 +21,7 @@
       "type": "lldb",
       "request": "launch",
       "preLaunchTask": "build:safe",
-      "program": "${workspaceFolder}/zig-out/bin/zuws"
+      "program": "${workspaceFolder}/zig-out/bin/UniverseLib"
     },
     {
       "name": "(cppdbg-lldb) Launch - Safe",
@@ -29,7 +29,7 @@
       "request": "launch",
       "preLaunchTask": "build:safe",
       "cwd": "${workspaceFolder}",
-      "program": "${workspaceFolder}/zig-out/bin/zuws",
+      "program": "${workspaceFolder}/zig-out/bin/UniverseLib",
       "MIMode": "lldb"
     },
   ]

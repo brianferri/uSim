@@ -1,6 +1,6 @@
 const std = @import("std");
 const UniverseLib = @import("root.zig");
-const stat = @import("./stat.zig").stat;
+const stat = @import("./util/stat.zig").stat;
 
 const Graph = UniverseLib.Graph;
 const String = UniverseLib.String;

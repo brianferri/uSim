@@ -1,5 +1,5 @@
-pub const String = @import("string.zig");
-pub const Graph = @import("Graph.zig").Graph;
+pub const String = @import("./physics/String.zig");
+pub const Graph = @import("./data_structures/Graph.zig").Graph;
 
 test {
     const std = @import("std");

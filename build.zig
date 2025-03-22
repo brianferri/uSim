@@ -3,21 +3,27 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const options = .{
+    const lib_options = std.Build.StaticLibraryOptions{
         .name = "UniverseLib",
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     };
-
-    const lib_options: std.Build.StaticLibraryOptions = options;
-    var exe_options: std.Build.ExecutableOptions = options;
-    const test_options: std.Build.TestOptions = options;
+    const exe_options = std.Build.ExecutableOptions{
+        .name = "UniverseLib",
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    };
+    const test_options = std.Build.TestOptions{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    };
 
     const lib = b.addStaticLibrary(lib_options);
     b.installArtifact(lib);
 
-    exe_options.root_source_file = b.path("src/main.zig");
     const exe = b.addExecutable(exe_options);
     b.installArtifact(exe);
 
@@ -34,7 +40,8 @@ pub fn build(b: *std.Build) void {
     const asm_step = b.step("asm", "Emit assembly file");
     const awf = b.addWriteFiles();
     awf.step.dependOn(b.getInstallStep());
-    awf.addCopyFileToSource(exe.getEmittedAsm(), "main.asm");
+    // Path is relative to the cache dir in which it *would've* been placed in
+    _ = awf.addCopyFile(exe.getEmittedAsm(), "../../../main.asm");
     asm_step.dependOn(&awf.step);
 
     const exe_check = b.addStaticLibrary(lib_options);

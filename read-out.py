@@ -28,5 +28,5 @@ def plot_data(data: dict[str, list], x_col: list[str], y_cols: list[str], colors
     plt.legend(loc='upper left')
     plt.show()
 
-data, columns = read_csv_data('out.csv')
+data, columns = read_csv_data('zig-out/out.csv')
 plot_data(data, columns[0], columns[1:], ['tab:red', 'tab:blue', 'tab:green', 'tab:purple'])

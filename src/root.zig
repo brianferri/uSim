@@ -1,4 +1,4 @@
-pub const String = @import("./physics/String.zig");
+pub const Particle = @import("universe_lib");
 pub const Graph = @import("./data_structures/Graph.zig").Graph;
 
 test {

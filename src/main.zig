@@ -2,8 +2,11 @@ const std = @import("std");
 const UniverseLib = @import("root.zig");
 const stat = @import("./util/stat.zig").stat;
 
+const options = @import("options");
+const useStat = options.stat;
+
 const Graph = UniverseLib.Graph;
-const String = UniverseLib.String;
+const String = UniverseLib.Particle;
 
 pub fn main() !void {
     const time = std.time;
@@ -64,7 +67,6 @@ pub fn main() !void {
 
         const iter_time = @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms;
         var buf: [1000]u8 = undefined;
-        const stats = try stat(&buf);
         var edges: u64 = 0;
 
         var vertices = graph.vertices.valueIterator();
@@ -72,7 +74,11 @@ pub fn main() !void {
             edges += v.*.adjacency_set.count();
         }
 
-        _ = try file.write(try std.fmt.allocPrint(std.heap.page_allocator, "{d},{d},{d},{d},{d}\n", .{ i, graph.vertices.count(), edges, iter_time, stats.rss }));
+        if (comptime useStat) {
+            _ = try file.write(try std.fmt.allocPrint(std.heap.page_allocator, "{d},{d},{d},{d},{d}\n", .{ i, graph.vertices.count(), edges, iter_time, (try stat(&buf)).rss }));
+        } else {
+            _ = try file.write(try std.fmt.allocPrint(std.heap.page_allocator, "{d},{d},{d},{d}\n", .{ i, graph.vertices.count(), edges, iter_time }));
+        }
 
         // Debug print every 100 iterations
         if (i % 100 == 0) {

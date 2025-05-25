@@ -26,28 +26,35 @@ pub fn main() !void {
     var outer_timer = try Timer.start();
     var timer = try Timer.start();
 
+    const p1 = String{
+        .tension = 1.0,
+        .vibration_mode = 10.0,
+        .phase = 0.0,
+    };
+    const p2 = String{
+        .tension = 1.5,
+        .vibration_mode = 15.0,
+        .phase = 0.2,
+    };
+
+    const id1 = try graph.addVertex(p1);
+    const id2 = try graph.addVertex(p2);
+    try graph.addEdge(id1, id2);
+
     for (0..450) |i| {
-        const p1 = String{
-            .tension = 1.0 + @as(f64, @floatFromInt(i)) * 0.01,
-            .vibration_mode = 10.0,
-            .phase = 0.0,
-        };
-        const p2 = String{
-            .tension = 1.5 + @as(f64, @floatFromInt(i)) * 0.01,
-            .vibration_mode = 15.0,
-            .phase = 0.2,
+        const Interaction = struct {
+            from: usize,
+            to: usize,
+            emitted: []String,
+            annihilated: bool,
         };
 
-        _ = try graph.addVertex(p1);
-        _ = try graph.addVertex(p2);
-
-        var vertices1 = graph.vertices.keyIterator();
-        while (vertices1.next()) |v1| {
-            var vertices2 = graph.vertices.keyIterator();
-            while (vertices2.next()) |v2| {
-                if (v1 == v2) continue;
-                try graph.addEdge(v1.*, v2.*);
+        var interactions = std.ArrayList(Interaction).init(allocator);
+        defer {
+            for (interactions.items) |interaction| {
+                allocator.free(interaction.emitted);
             }
+            interactions.deinit();
         }
 
         var vertex_iter = graph.vertices.iterator();
@@ -59,8 +66,28 @@ pub fn main() !void {
             while (adj_iter.next()) |adj_id| {
                 if (adj_id.* > id) {
                     if (graph.getVertex(adj_id.*)) |other_node| {
-                        node.*.data.interact(&other_node.data);
+                        const emitted = try node.*.data.interact(&other_node.data, allocator);
+                        const was_annihilated = node.*.data.annihilate(&other_node.data);
+                        try interactions.append(.{
+                            .from = id,
+                            .to = adj_id.*,
+                            .emitted = emitted,
+                            .annihilated = was_annihilated,
+                        });
                     }
+                }
+            }
+        }
+
+        for (interactions.items) |interaction| {
+            if (interaction.annihilated) {
+                _ = graph.removeVertex(interaction.from);
+                _ = graph.removeVertex(interaction.to);
+            } else {
+                for (interaction.emitted) |new_particle| {
+                    const new_id = try graph.addVertex(new_particle);
+                    try graph.addEdge(interaction.from, new_id);
+                    try graph.addEdge(interaction.to, new_id);
                 }
             }
         }
@@ -80,7 +107,6 @@ pub fn main() !void {
             _ = try file.write(try std.fmt.allocPrint(std.heap.page_allocator, "{d},{d},{d},{d}\n", .{ i, graph.vertices.count(), edges, iter_time }));
         }
 
-        // Debug print every 100 iterations
         if (i % 100 == 0) {
             if (graph.getVertex(0)) |sample| {
                 std.debug.print("Iter {}: mode = {}, phase = {}\n", .{ i, sample.data.vibration_mode, sample.data.phase });

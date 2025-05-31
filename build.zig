@@ -12,18 +12,27 @@ pub fn build(b: *std.Build) !void {
     const options = b.addOptions();
     options.addOption(bool, "stat", stat);
 
-    const lib_mod = b.createModule(.{
+    const ulib_mod = b.createModule(.{
         .root_source_file = b.path(model_path),
         .target = target,
         .optimize = optimize,
     });
+
+    const usim_mod = b.createModule(.{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    usim_mod.addImport("ulib", ulib_mod);
+    ulib_mod.addImport("usim", usim_mod);
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
-    exe_mod.addImport("universe_lib", lib_mod);
+    exe_mod.addImport("usim", usim_mod);
+    exe_mod.addImport("ulib", ulib_mod);
     exe_mod.addOptions("options", options);
 
     const exe = b.addExecutable(.{
@@ -36,7 +45,7 @@ pub fn build(b: *std.Build) !void {
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| run_cmd.addArgs(args);
 
-    const lib_unit_tests = b.addTest(.{ .root_module = lib_mod });
+    const lib_unit_tests = b.addTest(.{ .root_module = ulib_mod });
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
     const exe_unit_tests = b.addTest(.{ .root_module = exe_mod });

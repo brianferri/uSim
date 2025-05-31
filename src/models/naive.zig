@@ -1,77 +1,163 @@
 const std = @import("std");
+const uSim = @import("usim");
+
+const Graph = uSim.Graph;
 
 const Self = @This();
 
-tension: f64,
-vibration_mode: f64,
-phase: f64,
+const ParticleType = enum {
+    Electron,
+    Positron,
+    Photon,
+    WPlus,
+    WMinus,
+};
 
-/// Simulates an interaction between two particles, potentially emitting new particles.
+kind: ParticleType,
+charge: f64,
+mass: f64,
+energy: f64,
+
 pub fn interact(self: *Self, other: *Self, allocator: std.mem.Allocator) ![]Self {
     var emitted = std.ArrayList(Self).init(allocator);
-    const rand = std.crypto.random;
 
-    // Compute the average vibration mode based on tensions.
-    const avg_mode = (self.vibration_mode * other.tension +
-        other.vibration_mode * self.tension) /
-        (self.tension + other.tension);
+    if (try handleAnnihilation(self, other, &emitted)) return emitted.toOwnedSlice();
+    if (try handlePhotonEmission(self, other, &emitted)) return emitted.toOwnedSlice();
+    if (try handlePhotonPhotonInteraction(self, other, &emitted)) return emitted.toOwnedSlice();
+    if (try handleWBosonAnnihilation(self, other, &emitted)) return emitted.toOwnedSlice();
 
-    self.vibration_mode = avg_mode;
-    other.vibration_mode = avg_mode;
+    return emitted.toOwnedSlice();
+}
 
-    // Introduce slight random phase shifts.
-    self.phase += rand.float(f64) * 0.1;
-    other.phase += rand.float(f64) * 0.1;
+fn handleAnnihilation(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
+    if ((a.kind == .Electron and b.kind == .Positron) or
+        (a.kind == .Positron and b.kind == .Electron))
+    {
+        const energy = (a.energy + b.energy) / 2.0;
+        try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = energy });
+        try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = energy });
+        return true;
+    }
+    return false;
+}
 
-    // Randomly select an interaction type.
-    const interaction_type = rand.intRangeAtMost(u8, 0, 2);
+fn handlePhotonEmission(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
+    if ((a.kind == .Electron or a.kind == .Positron) and b.kind == .Photon) {
+        const photon_energy = a.energy * 0.1;
+        a.energy -= photon_energy;
+        try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = photon_energy });
+        return true;
+    }
+    return false;
+}
 
-    switch (interaction_type) {
-        0 => { // Emission
-            try emitted.append(self.emit());
-            try emitted.append(other.emit());
-        },
-        1 => { // Absorption
-            self.absorb(other);
-        },
-        2 => { // Annihilation
-            if (self.annihilate(other)) {
-                try emitted.append(Self{
-                    .tension = (self.tension + other.tension) * 0.5,
-                    .vibration_mode = avg_mode,
-                    .phase = 0.0,
-                });
-            }
-        },
-        else => {},
+fn handlePhotonPhotonInteraction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
+    if (a.kind == .Photon and b.kind == .Photon and (a.energy + b.energy) >= 1.022) {
+        const total_energy = a.energy + b.energy;
+        try emitted.append(.{ .kind = .Electron, .charge = -1.0, .mass = 0.511, .energy = total_energy / 2.0 });
+        try emitted.append(.{ .kind = .Positron, .charge = 1.0, .mass = 0.511, .energy = total_energy / 2.0 });
+        return true;
+    }
+    return false;
+}
+
+fn handleWBosonAnnihilation(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
+    if ((a.kind == .WPlus and b.kind == .WMinus) or (a.kind == .WMinus and b.kind == .WPlus)) {
+        const energy = (a.energy + b.energy) / 2.0;
+        try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = energy });
+        try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = energy });
+        return true;
+    }
+    return false;
+}
+
+pub fn canAnnihilate(a: *const Self, b: *const Self) bool {
+    return (a.kind == .Electron and b.kind == .Positron) or
+        (a.kind == .Positron and b.kind == .Electron);
+}
+
+pub fn initializeGraph(allocator: std.mem.Allocator) !Graph(usize, Self) {
+    var graph = Graph(usize, Self).init(allocator, 0);
+
+    var prng = std.Random.DefaultPrng.init(blk: {
+        var seed: u64 = undefined;
+        try std.posix.getrandom(std.mem.asBytes(&seed));
+        break :blk seed;
+    });
+    const random = prng.random();
+
+    const particle_count = 5;
+
+    for (0..particle_count) |_| {
+        const kind = random.enumValue(ParticleType);
+
+        const charge: f64 = switch (kind) {
+            .Electron => -1.0,
+            .Positron => 1.0,
+            .Photon => 0.0,
+            .WPlus => 1.0,
+            .WMinus => -1.0,
+        };
+
+        const mass: f64 = switch (kind) {
+            .Electron, .Positron => 0.511,
+            .Photon => 0.0,
+            .WPlus, .WMinus => 80.379,
+        };
+
+        const energy = random.float(f64) * 100.0;
+
+        const p: Self = .{
+            .kind = kind,
+            .charge = charge,
+            .mass = mass,
+            .energy = energy,
+        };
+
+        _ = try graph.addVertex(p);
     }
 
-    return try emitted.toOwnedSlice();
+    if (graph.vertices.count() >= 2) {
+        for (0..(graph.vertices.count() - 1)) |i| {
+            try graph.addEdge(i, i + 1);
+        }
+    }
+
+    return graph;
 }
 
-/// Creates a new particle emitted from the current particle.
-fn emit(self: *Self) Self {
-    const rand = std.crypto.random;
-    return Self{
-        .tension = self.tension * 0.5,
-        .vibration_mode = self.vibration_mode + rand.float(f64) * 0.1,
-        .phase = rand.float(f64) * std.math.pi * 2.0,
-    };
-}
+pub fn print(graph: *Graph(usize, Self)) void {
+    const num_vertices: usize = graph.vertices.count();
+    var total_edges: usize = 0;
 
-/// Modifies the current particle by absorbing properties from another particle.
-fn absorb(self: *Self, other: *Self) void {
-    const rand = std.crypto.random;
-    self.tension += other.tension * 0.1;
-    self.vibration_mode += other.vibration_mode * 0.1;
-    self.phase += rand.float(f64) * 0.05;
-}
+    var counts = [_]usize{0} ** @typeInfo(ParticleType).@"enum".fields.len;
+    var total_mass: f64 = 0.0;
+    var total_charge: f64 = 0.0;
+    var total_energy: f64 = 0.0;
 
-/// Determines if two particles annihilate each other based on their properties.
-pub fn annihilate(self: *Self, other: *Self) bool {
-    const tension_diff = self.tension - other.tension;
-    const mode_diff = self.vibration_mode - other.vibration_mode;
-    const phase_diff = self.phase - other.phase;
+    var vertices = graph.vertices.valueIterator();
+    while (vertices.next()) |v| {
+        total_edges += v.*.adjacency_set.count();
 
-    return tension_diff < 0.01 and mode_diff < 0.01 and phase_diff < 0.01;
+        const p = v.*.*.data;
+        counts[@intFromEnum(p.kind)] += 1;
+        total_mass += p.mass;
+        total_charge += p.charge;
+        total_energy += p.energy;
+    }
+
+    const avg_edges_per_particle = @as(f64, @floatFromInt(total_edges)) / @as(f64, @floatFromInt(num_vertices));
+
+    std.debug.print("\n--- Simulation Statistics ---\n", .{});
+    std.debug.print("Particles (vertices): {}\n", .{num_vertices});
+    std.debug.print("Edges: {}\n", .{total_edges});
+    std.debug.print("Average edges per particle: {d:.2}\n", .{avg_edges_per_particle});
+    std.debug.print("Total Mass: {d:.3} MeV/c^2\n", .{total_mass});
+    std.debug.print("Total Charge: {d:.3} e\n", .{total_charge});
+    std.debug.print("Total Energy: {d:.3} MeV\n", .{total_energy});
+
+    inline for (@typeInfo(ParticleType).@"enum".fields, 0..) |field, i|
+        std.debug.print("{s}: {any}\n", .{ field.name, counts[i] });
+
+    std.debug.print("-----------------------------\n\n", .{});
 }

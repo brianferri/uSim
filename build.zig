@@ -5,9 +5,9 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     const model = b.option([]const u8, "implementation", "The model to use for particles/interactions") orelse "naive";
-    const model_path = try std.fmt.allocPrint(b.allocator, "src/models/{s}.zig", .{model});
-
     const stat = b.option(bool, "stat", "Use stat to keep track of usages (Linux)") orelse false;
+
+    const model_path = try std.fmt.allocPrint(b.allocator, "src/models/{s}.zig", .{model});
 
     const options = b.addOptions();
     options.addOption(bool, "stat", stat);
@@ -23,7 +23,6 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     });
-    usim_mod.addImport("ulib", ulib_mod);
     ulib_mod.addImport("usim", usim_mod);
 
     const exe_mod = b.createModule(.{

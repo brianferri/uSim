@@ -18,14 +18,13 @@ const Interaction = struct {
     annihilated: bool,
 };
 
+// TODO Revisit this to establish a correct pipeline for interactions and possible "annihilation"/"decay"/"replacement" of particles
 fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Particle)) !void {
     var interactions = std.ArrayList(Interaction).init(allocator);
-    defer {
-        for (interactions.items) |interaction| {
-            allocator.free(interaction.emitted);
-        }
-        interactions.deinit();
-    }
+    defer interactions.deinit();
+    defer for (interactions.items) |interaction| {
+        allocator.free(interaction.emitted);
+    };
 
     var vertex_iter = graph.vertices.iterator();
     while (vertex_iter.next()) |entry| {
@@ -37,7 +36,7 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Partic
             if (adj_id.* > id) {
                 if (graph.getVertex(adj_id.*)) |other_node| {
                     const emitted = try node.data.interact(&other_node.data, allocator);
-                    const was_annihilated = node.data.canAnnihilate(&other_node.data);
+                    const was_annihilated = emitted.len == 2 and emitted[0].kind == .Photon and emitted[1].kind == .Photon;
                     try interactions.append(.{
                         .from = id,
                         .to = adj_id.*,
@@ -50,15 +49,14 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Partic
     }
 
     for (interactions.items) |interaction| {
+        for (interaction.emitted) |new_particle| {
+            const new_id = try graph.addVertex(new_particle);
+            try graph.addEdge(interaction.from, new_id);
+            try graph.addEdge(interaction.to, new_id);
+        }
         if (interaction.annihilated) {
             _ = graph.removeVertex(interaction.from);
             _ = graph.removeVertex(interaction.to);
-        } else {
-            for (interaction.emitted) |new_particle| {
-                const new_id = try graph.addVertex(new_particle);
-                try graph.addEdge(interaction.from, new_id);
-                try graph.addEdge(interaction.to, new_id);
-            }
         }
     }
 }
@@ -110,8 +108,11 @@ pub fn main() !void {
         const iter_time = @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms;
         try logIteration(allocator, &file, &graph, i, iter_time);
 
+        std.debug.print("\x1B[2J\x1B[H", .{});
         std.debug.print("iter: {d} | time: {d}", .{ i, iter_time });
         Particle.print(&graph);
+
+        if (graph.vertices.count() == 0) break;
     }
 
     std.debug.print("Total time: {d:.3}ms\n", .{@as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms});

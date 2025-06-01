@@ -37,170 +37,69 @@ pub fn interact(self: *Self, other: *Self, allocator: std.mem.Allocator) ![]Self
     var emitted = std.ArrayList(Self).init(allocator);
 
     if (try handleAnnihilation(self, other, &emitted)) return emitted.toOwnedSlice();
-    if (try handlePhotonEmission(self, other, &emitted)) return emitted.toOwnedSlice();
-    if (try handlePhotonPhotonInteraction(self, other, &emitted)) return emitted.toOwnedSlice();
-    if (try handleWBosonInteraction(self, other, &emitted)) return emitted.toOwnedSlice();
-    if (try handleGluonEmission(self, other, &emitted)) return emitted.toOwnedSlice();
-    if (try handleHiggsDecay(self, other, &emitted)) return emitted.toOwnedSlice();
-    if (try handleNeutrinoInteraction(self, other, &emitted)) return emitted.toOwnedSlice();
-    if (try handleZBosonDecay(self, other, &emitted)) return emitted.toOwnedSlice();
-    if (try handleQuarkPairProduction(self, other, &emitted)) return emitted.toOwnedSlice();
-    if (try handleWeakLeptonInteraction(self, other, &emitted)) return emitted.toOwnedSlice();
+    if (try handleDecay(self, &emitted)) return emitted.toOwnedSlice();
+    if (try handleDecay(other, &emitted)) return emitted.toOwnedSlice();
+    if (try handleScattering(self, other, &emitted)) return emitted.toOwnedSlice();
+    if (try handlePairProduction(self, other, &emitted)) return emitted.toOwnedSlice();
 
     return emitted.toOwnedSlice();
 }
 
 fn handleAnnihilation(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
-    if (a.kind == .Electron and b.kind == .Electron and a.charge != b.charge) {
-        const energy = (a.energy + b.energy) / 2.0;
-        try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = energy, .spin = 1.0, .has_color = false });
-        try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = energy, .spin = 1.0, .has_color = false });
-        return true;
-    }
-    return false;
-}
-
-fn handlePhotonEmission(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
-    if ((a.kind == .Electron or a.kind == .Muon or a.kind == .Tau) and b.kind == .Photon) {
-        const photon_energy = a.energy * 0.1;
-        a.energy -= photon_energy;
+    if (a.mass == 0.0 and b.mass == 0.0) return false;
+    if (a.charge == -b.charge and a.mass == -b.mass) {
+        const total_energy = a.energy + b.energy;
+        const photon_energy = total_energy / 2.0;
         try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = photon_energy, .spin = 1.0, .has_color = false });
+        try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = photon_energy, .spin = -1.0, .has_color = false });
+
         return true;
     }
     return false;
 }
 
-fn handlePhotonPhotonInteraction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
-    if (a.kind == .Photon and b.kind == .Photon and (a.energy + b.energy) >= 1.022) {
-        const total_energy = a.energy + b.energy;
-        try emitted.append(.{ .kind = .Electron, .charge = -1.0, .mass = 0.511, .energy = total_energy / 2.0, .spin = 0.5, .has_color = false });
-        try emitted.append(.{ .kind = .Electron, .charge = 1.0, .mass = 0.511, .energy = total_energy / 2.0, .spin = 0.5, .has_color = false });
-        return true;
-    }
-    return false;
-}
-
-fn handleWBosonInteraction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
-    if ((a.kind == .WBosonPlus and b.kind == .WBosonMinus) or (a.kind == .WBosonMinus and b.kind == .WBosonPlus)) {
-        const energy = (a.energy + b.energy) / 2.0;
-        try emitted.append(.{ .kind = .ZBoson, .charge = 0.0, .mass = 91.1876, .energy = energy, .spin = 1.0, .has_color = false });
-        return true;
-    }
-    return false;
-}
-
-fn handleGluonEmission(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
-    if ((a.has_color and b.kind == .Gluon) or (b.has_color and a.kind == .Gluon)) {
-        const emitter = if (a.has_color) a else b;
-        const energy = emitter.energy * 0.05;
-        if (energy < 1.0) return false;
-
-        emitter.energy -= energy;
-        try emitted.append(.{ .kind = .Gluon, .charge = 0.0, .mass = 0.0, .energy = energy, .spin = 1.0, .has_color = true });
-        return true;
-    }
-    return false;
-}
-
-fn handleHiggsDecay(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
-    if (a.kind != .HiggsBoson and b.kind != .HiggsBoson) return false;
-
-    const higgs = if (a.kind == .HiggsBoson) a else b;
-    if (higgs.energy < 10.0) return false;
-
-    const energy = higgs.energy / 2.0;
-
-    try emitted.append(.{ .kind = .BottomQuark, .charge = -1.0 / 3.0, .mass = 4180.0, .energy = energy, .spin = 0.5, .has_color = true });
-    try emitted.append(.{ .kind = .BottomQuark, .charge = 1.0 / 3.0, .mass = 4180.0, .energy = energy, .spin = 0.5, .has_color = true });
-    return true;
-}
-
-fn handleNeutrinoInteraction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
-    const is_neutrino = a.kind == .ElectronNeutrino or a.kind == .MuonNeutrino or a.kind == .TauNeutrino or
-        b.kind == .ElectronNeutrino or b.kind == .MuonNeutrino or b.kind == .TauNeutrino;
-
-    if (!is_neutrino) return false;
-
-    const charged_lepton: ParticleType = switch (a.kind) {
-        .ElectronNeutrino => .Electron,
-        .MuonNeutrino => .Muon,
-        .TauNeutrino => .Tau,
-        else => switch (b.kind) {
-            .ElectronNeutrino => .Electron,
-            .MuonNeutrino => .Muon,
-            .TauNeutrino => .Tau,
-            else => return false,
+fn handleDecay(p: *Self, emitted: *std.ArrayList(Self)) !bool {
+    switch (p.kind) {
+        .Muon => {
+            // Muon -> Electron + ElectronNeutrino + MuonNeutrino
+            try emitted.append(.{ .kind = .Electron, .charge = -1.0, .mass = 0.511, .energy = p.energy * 0.5, .spin = 0.5, .has_color = false });
+            try emitted.append(.{ .kind = .ElectronNeutrino, .charge = 0.0, .mass = 0.0, .energy = p.energy * 0.25, .spin = 0.5, .has_color = false });
+            try emitted.append(.{ .kind = .MuonNeutrino, .charge = 0.0, .mass = 0.0, .energy = p.energy * 0.25, .spin = 0.5, .has_color = false });
+            return true;
         },
-    };
-
-    const energy = (a.energy + b.energy) / 2.0;
-
-    try emitted.append(.{ .kind = charged_lepton, .charge = -1.0, .mass = switch (charged_lepton) {
-        .Electron => 0.511,
-        .Muon => 105.66,
-        .Tau => 1776.86,
-        else => unreachable,
-    }, .energy = energy, .spin = 0.5, .has_color = false });
-
-    return true;
+        .WBosonPlus => {
+            // W+ -> Positron + ElectronNeutrino
+            try emitted.append(.{ .kind = .Electron, .charge = 1.0, .mass = 0.511, .energy = p.energy * 0.6, .spin = 0.5, .has_color = false });
+            try emitted.append(.{ .kind = .ElectronNeutrino, .charge = 0.0, .mass = 0.0, .energy = p.energy * 0.4, .spin = 0.5, .has_color = false });
+            return true;
+        },
+        else => return false,
+    }
 }
 
-fn handleZBosonDecay(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
-    if (a.kind != .ZBoson and b.kind != .ZBoson) return false;
-
-    const z = if (a.kind == .ZBoson) a else b;
-    if (z.energy < 1.1) return false;
-
-    const energy = z.energy / 2.0;
-
-    try emitted.append(.{ .kind = .Electron, .charge = -1.0, .mass = 0.511, .energy = energy, .spin = 0.5, .has_color = false });
-    try emitted.append(.{ .kind = .Electron, .charge = 1.0, .mass = 0.511, .energy = energy, .spin = 0.5, .has_color = false });
-    return true;
-}
-
-fn handleQuarkPairProduction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
-    if ((a.kind == .Photon or a.kind == .Gluon) and (b.kind == .Photon or b.kind == .Gluon)) {
-        const total_energy = a.energy + b.energy;
-        if (total_energy < 10.0) return false;
-
-        const energy = total_energy / 2.0;
-
-        try emitted.append(.{ .kind = .UpQuark, .charge = 2.0 / 3.0, .mass = 2.3, .energy = energy, .spin = 0.5, .has_color = true });
-        try emitted.append(.{ .kind = .UpQuark, .charge = -2.0 / 3.0, .mass = 2.3, .energy = energy, .spin = 0.5, .has_color = true });
+fn handleScattering(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
+    if (a.charge != 0.0 and b.charge != 0.0) {
+        // Simplified photon exchange
+        try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = (a.energy + b.energy) * 0.1, .spin = 1.0, .has_color = false });
+        return true;
+    }
+    if (a.has_color and b.has_color) {
+        // Gluon exchange for quarks
+        try emitted.append(.{ .kind = .Gluon, .charge = 0.0, .mass = 0.0, .energy = (a.energy + b.energy) * 0.1, .spin = 1.0, .has_color = true });
         return true;
     }
     return false;
 }
 
-fn handleWeakLeptonInteraction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
-    const is_lepton = switch (a.kind) {
-        .Electron, .Muon, .Tau => true,
-        else => switch (b.kind) {
-            .Electron, .Muon, .Tau => true,
-            else => false,
-        },
-    };
-
-    const is_wboson = a.kind == .WBosonPlus or a.kind == .WBosonMinus or b.kind == .WBosonPlus or b.kind == .WBosonMinus;
-
-    if (!is_lepton or !is_wboson) return false;
-
-    const energy = (a.energy + b.energy) / 2.0;
-    const lepton: ParticleType = if (a.kind == .Electron or b.kind == .Electron) .Electron else if (a.kind == .Muon or b.kind == .Muon) .Muon else .Tau;
-    const neutrino: ParticleType = switch (lepton) {
-        .Electron => .ElectronNeutrino,
-        .Muon => .MuonNeutrino,
-        .Tau => .TauNeutrino,
-        else => unreachable,
-    };
-
-    try emitted.append(.{ .kind = neutrino, .charge = 0.0, .mass = 0.0, .energy = energy, .spin = 0.5, .has_color = false });
-
-    return true;
-}
-
-pub fn canAnnihilate(a: *const Self, b: *const Self) bool {
-    return a.kind == b.kind and a.charge != b.charge and a.spin == b.spin and a.mass == b.mass;
+fn handlePairProduction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
+    if (a.kind == .Photon and b.kind == .Photon and (a.energy + b.energy) > 2.0 * 0.511) {
+        // Photon + Photon -> Electron + Positron (simplified)
+        const e_per_particle = (a.energy + b.energy) / 2.0;
+        try emitted.append(.{ .kind = .Electron, .charge = -1.0, .mass = 0.511, .energy = e_per_particle, .spin = 0.5, .has_color = false });
+        try emitted.append(.{ .kind = .Electron, .charge = 1.0, .mass = 0.511, .energy = e_per_particle, .spin = -0.5, .has_color = false });
+        return true;
+    }
+    return false;
 }
 
 pub fn initializeGraph(allocator: std.mem.Allocator) !Graph(usize, Self) {
@@ -260,7 +159,10 @@ pub fn initializeGraph(allocator: std.mem.Allocator) !Graph(usize, Self) {
 
     if (graph.vertices.count() >= 2) {
         for (0..(graph.vertices.count() - 1)) |i| {
-            try graph.addEdge(i, i + 1);
+            for (0..(graph.vertices.count() - 1)) |j| {
+                if (i == j) continue;
+                try graph.addEdge(i, j);
+            }
         }
     }
 

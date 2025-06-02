@@ -11,52 +11,82 @@ const Graph = uSim.Graph;
 
 const MAX_EDGES_PER_PARTICLE = 2;
 
-const Interaction = struct {
-    from: usize,
+const InteractionTransaction = struct {
     to: usize,
     emitted: []Particle,
-    annihilated: bool,
+    /// If the particles that interacted were consumed in the interaction and are flagged for removal from the graph
+    consumed: bool,
 };
 
-// TODO Revisit this to establish a correct pipeline for interactions and possible "annihilation"/"decay"/"replacement" of particles
-fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Particle)) !void {
-    var interactions = std.ArrayList(Interaction).init(allocator);
-    defer interactions.deinit();
-    defer for (interactions.items) |interaction| {
-        allocator.free(interaction.emitted);
-    };
-
-    var vertex_iter = graph.vertices.iterator();
-    while (vertex_iter.next()) |entry| {
-        const id = entry.key_ptr.*;
-        const node = entry.value_ptr.*;
-
-        var adj_iter = node.adjacency_set.keyIterator();
-        while (adj_iter.next()) |adj_id| {
-            if (adj_id.* > id) {
-                if (graph.getVertex(adj_id.*)) |other_node| {
-                    const emitted = try node.data.interact(&other_node.data, allocator);
-                    const was_annihilated = emitted.len == 2 and emitted[0].kind == .Photon and emitted[1].kind == .Photon;
-                    try interactions.append(.{
-                        .from = id,
-                        .to = adj_id.*,
-                        .emitted = emitted,
-                        .annihilated = was_annihilated,
-                    });
-                }
-            }
+fn connectNewParticle(graph: *Graph(usize, Particle), new_id: usize, source_id: usize) !void {
+    if (graph.getVertex(source_id)) |v| {
+        var adj = v.adjacency_set.keyIterator();
+        while (adj.next()) |nid| {
+            try graph.addEdge(new_id, nid.*);
+        }
+        var inc = v.incidency_set.keyIterator();
+        while (inc.next()) |nid| {
+            try graph.addEdge(nid.*, new_id);
         }
     }
+}
 
-    for (interactions.items) |interaction| {
-        for (interaction.emitted) |new_particle| {
-            const new_id = try graph.addVertex(new_particle);
-            try graph.addEdge(interaction.from, new_id);
-            try graph.addEdge(interaction.to, new_id);
+fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Particle)) !void {
+    var transactions = std.AutoHashMap(usize, InteractionTransaction).init(allocator);
+    var locks = std.AutoHashMap(usize, void).init(allocator);
+    defer {
+        transactions.deinit();
+        locks.clearAndFree();
+        locks.deinit();
+    }
+
+    // Collect interaction transactions
+    var iter = graph.vertices.keyIterator();
+    while (iter.next()) |from_id| {
+        if (locks.contains(from_id.*)) continue;
+
+        const from = graph.getVertex(from_id.*) orelse continue;
+        var to_it = from.adjacency_set.keyIterator();
+        while (to_it.next()) |to_id| {
+            if (locks.contains(to_id.*)) continue;
+
+            try locks.put(from_id.*, {});
+            try locks.put(to_id.*, {});
+
+            const to = graph.getVertex(to_id.*) orelse continue;
+
+            var emitted = std.ArrayList(Particle).init(allocator);
+            const consumed = try Particle.interact(&from.data, &to.data, &emitted);
+
+            try transactions.put(from_id.*, .{
+                .to = to_id.*,
+                .emitted = try emitted.toOwnedSlice(),
+                .consumed = consumed,
+            });
+
+            break;
         }
-        if (interaction.annihilated) {
-            _ = graph.removeVertex(interaction.from);
-            _ = graph.removeVertex(interaction.to);
+    }
+    std.debug.print("No. transactions: {d}\n", .{transactions.count()});
+
+    // Apply interactions to graph
+    var tx_iter = transactions.iterator();
+    while (tx_iter.next()) |entry| {
+        const from = entry.key_ptr.*;
+        const tx = entry.value_ptr.*;
+        const to = tx.to;
+
+        // std.debug.print("Tx: from={} to={} emitted={} consumed={}\n", .{ from, to, tx.emitted.len, tx.consumed });
+
+        for (tx.emitted) |p| {
+            const new_id = try graph.addVertex(p);
+            try connectNewParticle(graph, new_id, from);
+            try connectNewParticle(graph, new_id, to);
+        }
+
+        if (tx.consumed) {
+            _ = graph.removeVertex(from);
+            _ = graph.removeVertex(to);
         }
     }
 }
@@ -91,17 +121,18 @@ fn logIteration(
 pub fn main() !void {
     var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
     const allocator = gpa.allocator();
+    var outer_timer = try time.Timer.start();
 
     var graph = try Particle.initializeGraph(allocator);
     defer graph.deinit();
     Particle.print(&graph);
+    std.debug.print("Initialized in: {d:.3}ms\n", .{@as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms});
 
     var file = try std.fs.cwd().createFile("zig-out/out.csv", .{});
     defer file.close();
     _ = try file.write("iter,vertices,num_edges,iter_time,mem\n");
 
-    var outer_timer = try time.Timer.start();
-
+    var graph_state = graph;
     for (0..450) |i| {
         var timer = try time.Timer.start();
         try processInteractions(allocator, &graph);
@@ -110,10 +141,12 @@ pub fn main() !void {
         try logIteration(allocator, &file, &graph, i, iter_time);
 
         std.debug.print("\x1B[2J\x1B[H", .{});
-        std.debug.print("iter: {d} | time: {d}", .{ i, iter_time });
+        std.debug.print("iter: {d} | time: {d}\n", .{ i, iter_time });
+        if (std.meta.eql(graph, graph_state) and i != 0) break; //? Reached stable state
         Particle.print(&graph);
 
         if (graph.vertices.count() == 0) break;
+        graph_state = graph;
     }
 
     std.debug.print("Total time: {d:.3}ms\n", .{@as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms});

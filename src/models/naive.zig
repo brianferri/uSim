@@ -33,26 +33,26 @@ energy: f64,
 spin: f64,
 has_color: bool,
 
-pub fn interact(self: *Self, other: *Self, allocator: std.mem.Allocator) ![]Self {
-    var emitted = std.ArrayList(Self).init(allocator);
+/// Returns `true` if the emission consumed the interacting particles
+pub fn interact(self: *Self, other: *Self, emission_buffer: *std.ArrayList(Self)) !bool {
+    if (try handleAnnihilation(self, other, emission_buffer)) return true;
+    if (try handlePairProduction(self, other, emission_buffer)) return true;
 
-    if (try handleAnnihilation(self, other, &emitted)) return emitted.toOwnedSlice();
-    if (try handleDecay(self, &emitted)) return emitted.toOwnedSlice();
-    if (try handleDecay(other, &emitted)) return emitted.toOwnedSlice();
-    if (try handleScattering(self, other, &emitted)) return emitted.toOwnedSlice();
-    if (try handlePairProduction(self, other, &emitted)) return emitted.toOwnedSlice();
+    const consumed_self = try handleDecay(self, emission_buffer);
+    const consumed_other = try handleDecay(other, emission_buffer);
+    if (consumed_self or consumed_other) return true;
 
-    return emitted.toOwnedSlice();
+    _ = try handleScattering(self, other, emission_buffer);
+    return false;
 }
 
 fn handleAnnihilation(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
-    if (a.mass == 0.0 and b.mass == 0.0) return false;
-    if (a.charge == -b.charge and a.mass == -b.mass) {
+    if (a.mass == 0.0 or b.mass == 0.0) return false;
+    if (a.charge == -b.charge and a.kind != b.kind and a.mass == b.mass) {
         const total_energy = a.energy + b.energy;
         const photon_energy = total_energy / 2.0;
         try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = photon_energy, .spin = 1.0, .has_color = false });
         try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = photon_energy, .spin = -1.0, .has_color = false });
-
         return true;
     }
     return false;
@@ -73,21 +73,31 @@ fn handleDecay(p: *Self, emitted: *std.ArrayList(Self)) !bool {
             try emitted.append(.{ .kind = .ElectronNeutrino, .charge = 0.0, .mass = 0.0, .energy = p.energy * 0.4, .spin = 0.5, .has_color = false });
             return true;
         },
+        .WBosonMinus => {
+            try emitted.append(.{ .kind = .Electron, .charge = -1.0, .mass = 0.511, .energy = p.energy * 0.6, .spin = 0.5, .has_color = false });
+            try emitted.append(.{ .kind = .ElectronNeutrino, .charge = 0.0, .mass = 0.0, .energy = p.energy * 0.4, .spin = 0.5, .has_color = false });
+            return true;
+        },
         else => return false,
     }
 }
 
 fn handleScattering(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
+    const emission_energy = (a.energy + b.energy) * 0.1;
+
     if (a.charge != 0.0 and b.charge != 0.0) {
-        // Simplified photon exchange
-        try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = (a.energy + b.energy) * 0.1, .spin = 1.0, .has_color = false });
-        return true;
+        try emitted.append(.{ .kind = .Photon, .charge = 0.0, .mass = 0.0, .energy = emission_energy, .spin = 1.0, .has_color = false });
+    } else if (a.has_color and b.has_color) {
+        try emitted.append(.{ .kind = .Gluon, .charge = 0.0, .mass = 0.0, .energy = emission_energy, .spin = 1.0, .has_color = true });
+    } else {
+        return false;
     }
-    if (a.has_color and b.has_color) {
-        // Gluon exchange for quarks
-        try emitted.append(.{ .kind = .Gluon, .charge = 0.0, .mass = 0.0, .energy = (a.energy + b.energy) * 0.1, .spin = 1.0, .has_color = true });
-        return true;
-    }
+
+    // Split the energy cost equally
+    const half_emission = emission_energy / 2.0;
+    a.energy = @max(0.0, a.energy - half_emission);
+    b.energy = @max(0.0, b.energy - half_emission);
+
     return false;
 }
 

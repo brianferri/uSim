@@ -154,7 +154,8 @@ pub fn main() !void {
     _ = try file.write("iter,vertices,num_edges,iter_time,mem\n");
 
     var graph_state = graph;
-    for (0..450) |i| {
+    var i: usize = 0;
+    while (true) : (i += 1) {
         std.debug.print("Calculating iter: {d}...\n", .{i});
 
         var timer = try time.Timer.start();

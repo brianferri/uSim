@@ -94,6 +94,7 @@ pub fn main() !void {
 
     var graph = try Particle.initializeGraph(allocator);
     defer graph.deinit();
+    Particle.print(&graph);
 
     var file = try std.fs.cwd().createFile("zig-out/out.csv", .{});
     defer file.close();

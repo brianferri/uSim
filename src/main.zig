@@ -57,6 +57,7 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Partic
         const from = graph.getVertex(from_id.*) orelse continue;
         var to_it = from.adjacency_set.keyIterator();
         while (to_it.next()) |to_id| {
+            if (from_id.* == to_id.*) continue;
             if (locks.contains(to_id.*)) continue;
 
             try locks.put(from_id.*, {});

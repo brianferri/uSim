@@ -85,6 +85,7 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Partic
     std.debug.print("\nNo. transactions to apply: {d}\n", .{transactions.count()});
 
     // Apply interactions to graph
+    var apply_index: usize = 0;
     var tx_iter = transactions.iterator();
     while (tx_iter.next()) |entry| {
         const from = entry.key_ptr.*;
@@ -92,9 +93,11 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Partic
         const to = tx.to;
 
         std.debug.print(
-            "\rApplying Tx: from = {d}, to = {d}, emitted = {d}, consumed = {any}\x1B[0K",
-            .{ from, to, tx.emitted.len, tx.consumed },
+            "\rApplying Tx {d}: from = {d}, to = {d}, emitted = {d}, consumed = {any}\x1B[0K",
+            .{ apply_index, from, to, tx.emitted.len, tx.consumed },
         );
+
+        apply_index += 1;
 
         for (tx.emitted) |p| {
             const new_id = try graph.addVertex(p);

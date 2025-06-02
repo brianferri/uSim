@@ -19,14 +19,23 @@ const InteractionTransaction = struct {
 };
 
 fn connectNewParticle(graph: *Graph(usize, Particle), new_id: usize, source_id: usize) !void {
-    if (graph.getVertex(source_id)) |v| {
-        var adj = v.adjacency_set.keyIterator();
-        while (adj.next()) |nid| {
-            try graph.addEdge(new_id, nid.*);
+    if (graph.getVertex(source_id)) |source| {
+        var new = graph.getVertex(new_id).?;
+        new.adjacency_set = try source.adjacency_set.clone();
+        new.incidency_set = try source.incidency_set.clone();
+
+        var adj_iter = source.adjacency_set.iterator();
+        while (adj_iter.next()) |entry| {
+            if (graph.getVertex(entry.key_ptr.*)) |adj_v| {
+                try adj_v.addIncEdge(new_id);
+            }
         }
-        var inc = v.incidency_set.keyIterator();
-        while (inc.next()) |nid| {
-            try graph.addEdge(nid.*, new_id);
+
+        var inc_iter = source.incidency_set.iterator();
+        while (inc_iter.next()) |entry| {
+            if (graph.getVertex(entry.key_ptr.*)) |inc_v| {
+                try inc_v.addAdjEdge(new_id);
+            }
         }
     }
 }
@@ -55,6 +64,11 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Partic
 
             const to = graph.getVertex(to_id.*) orelse continue;
 
+            std.debug.print(
+                "\rInteracting: v1 = {d} (edges: {d}), v2 = {d} (edges: {d})\x1B[0K",
+                .{ from_id.*, from.adjacency_set.count(), to_id.*, to.adjacency_set.count() },
+            );
+
             var emitted = std.ArrayList(Particle).init(allocator);
             const consumed = try Particle.interact(&from.data, &to.data, &emitted);
 
@@ -67,7 +81,7 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Partic
             break;
         }
     }
-    std.debug.print("No. transactions: {d}\n", .{transactions.count()});
+    std.debug.print("\nNo. transactions to apply: {d}\n", .{transactions.count()});
 
     // Apply interactions to graph
     var tx_iter = transactions.iterator();
@@ -76,7 +90,10 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Partic
         const tx = entry.value_ptr.*;
         const to = tx.to;
 
-        // std.debug.print("Tx: from={} to={} emitted={} consumed={}\n", .{ from, to, tx.emitted.len, tx.consumed });
+        std.debug.print(
+            "\rApplying Tx: from = {d}, to = {d}, emitted = {d}, consumed = {any}\x1B[0K",
+            .{ from, to, tx.emitted.len, tx.consumed },
+        );
 
         for (tx.emitted) |p| {
             const new_id = try graph.addVertex(p);
@@ -134,9 +151,10 @@ pub fn main() !void {
 
     var graph_state = graph;
     for (0..450) |i| {
+        std.debug.print("Calculating iter: {d}...\n", .{i});
+
         var timer = try time.Timer.start();
         try processInteractions(allocator, &graph);
-
         const iter_time = @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms;
         try logIteration(allocator, &file, &graph, i, iter_time);
 

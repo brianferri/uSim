@@ -33,6 +33,7 @@ const ParticleType = enum {
     ZBoson,
     Gluon,
     HiggsBoson,
+    Unknown,
 };
 
 /// | Particle          | Mass (MeV/c²) | Tolerance (MeV/c²) | Charge (e) | Spin | Color Charge |
@@ -53,39 +54,25 @@ const ParticleType = enum {
 /// | Higgs Boson       | 125100        | ±300               | 0          | 0.0  | No           |
 pub fn describeParticle(p: Self) ?ParticleType {
     const approxEqual = std.math.approxEqRel;
-    if (approxEqual(f64, p.mass, 2.16, 0.49) and approxEqual(f64, p.charge, 2.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) {
-        return .UpQuark;
-    } else if (approxEqual(f64, p.mass, 4.67, 0.48) and approxEqual(f64, p.charge, -1.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) {
-        return .DownQuark;
-    } else if (approxEqual(f64, p.mass, 1275.0, 25.0) and approxEqual(f64, p.charge, 2.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) {
-        return .CharmQuark;
-    } else if (approxEqual(f64, p.mass, 93.0, 11.0) and approxEqual(f64, p.charge, -1.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) {
-        return .StrangeQuark;
-    } else if (approxEqual(f64, p.mass, 171770.0, 380.0) and approxEqual(f64, p.charge, 2.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) {
-        return .TopQuark;
-    } else if (approxEqual(f64, p.mass, 4180.0, 30.0) and approxEqual(f64, p.charge, -1.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) {
-        return .BottomQuark;
-    } else if (approxEqual(f64, p.mass, 0.51099895, 0.00000015) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 0.5 and !p.has_color) {
-        return .Electron;
-    } else if (p.mass < 0.8 and approxEqual(f64, p.charge, 0.0, 0.001) and p.spin == 0.5 and !p.has_color) {
-        return .ElectronNeutrino;
-    } else if (approxEqual(f64, p.mass, 105.6583755, 0.0000023) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 0.5 and !p.has_color) {
-        return .Muon;
-    } else if (approxEqual(f64, p.mass, 1776.86, 0.12) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 0.5 and !p.has_color) {
-        return .Tau;
-    } else if (approxEqual(f64, p.mass, 80379.0, 12.0) and approxEqual(f64, p.charge, 1.0, 0.01) and p.spin == 1.0 and !p.has_color) {
-        return .WBosonPlus;
-    } else if (approxEqual(f64, p.mass, 80379.0, 12.0) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 1.0 and !p.has_color) {
-        return .WBosonMinus;
-    } else if (approxEqual(f64, p.mass, 91187.6, 2.1) and approxEqual(f64, p.charge, 0.0, 0.001) and p.spin == 1.0 and !p.has_color) {
-        return .ZBoson;
-    } else if (p.mass == 0.0 and p.charge == 0.0 and p.spin == 1.0 and p.has_color) {
-        return .Gluon;
-    } else if (approxEqual(f64, p.mass, 125100.0, 300.0) and approxEqual(f64, p.charge, 0.0, 0.001) and p.spin == 0.0 and !p.has_color) {
-        return .HiggsBoson;
-    } else {
-        return null;
-    }
+    // zig fmt: off
+         if (approxEqual(f64, p.mass, 0.51099895, 0.00000015) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 0.5 and !p.has_color) return .Electron
+    else if (approxEqual(f64, p.mass, 2.16, 0.49) and approxEqual(f64, p.charge, 2.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) return .UpQuark
+    else if (p.mass == 0.0 and p.charge == 0.0 and p.spin == 1.0 and p.has_color) return .Gluon
+    else if (p.mass < 0.8 and approxEqual(f64, p.charge, 0.0, 0.001) and p.spin == 0.5 and !p.has_color) return .ElectronNeutrino
+    else if (approxEqual(f64, p.mass, 4.67, 0.48) and approxEqual(f64, p.charge, -1.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) return .DownQuark
+    else if (approxEqual(f64, p.mass, 93.0, 11.0) and approxEqual(f64, p.charge, -1.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) return .StrangeQuark
+    else if (approxEqual(f64, p.mass, 105.6583755, 0.0000023) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 0.5 and !p.has_color) return .Muon
+    else if (approxEqual(f64, p.mass, 1275.0, 25.0) and approxEqual(f64, p.charge, 2.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) return .CharmQuark
+    else if (approxEqual(f64, p.mass, 4180.0, 30.0) and approxEqual(f64, p.charge, -1.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) return .BottomQuark
+    else if (approxEqual(f64, p.mass, 1776.86, 0.12) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 0.5 and !p.has_color) return .Tau
+    else if (approxEqual(f64, p.mass, 80379.0, 12.0) and approxEqual(f64, p.charge, 1.0, 0.01) and p.spin == 1.0 and !p.has_color) return .WBosonPlus
+    else if (approxEqual(f64, p.mass, 80379.0, 12.0) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 1.0 and !p.has_color) return .WBosonMinus
+    else if (approxEqual(f64, p.mass, 91187.6, 2.1) and approxEqual(f64, p.charge, 0.0, 0.001) and p.spin == 1.0 and !p.has_color) return .ZBoson
+    else if (approxEqual(f64, p.mass, 171770.0, 380.0) and approxEqual(f64, p.charge, 2.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) return .TopQuark
+    else if (approxEqual(f64, p.mass, 125100.0, 300.0) and approxEqual(f64, p.charge, 0.0, 0.001) and p.spin == 0.0 and !p.has_color) return .HiggsBoson
+    // zig fmt: on
+
+    else return .Unknown;
 }
 
 /// Returns `true` if the emission consumed the interacting particles
@@ -113,9 +100,9 @@ pub fn interact(self: *Self, other: *Self, emission_buffer: *std.ArrayList(Self)
 /// If these conditions are met, it simulates their annihilation into two photons,
 /// each carrying half of the total energy and opposite spins to conserve angular momentum.
 fn handleAnnihilation(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
-    if (a.charge == -b.charge and
-        a.mass == b.mass and
-        a.spin == -b.spin and
+    if (std.math.approxEqRel(f64, a.charge, -b.charge, 1e-6) and
+        std.math.approxEqRel(f64, a.mass, b.mass, 1e-6) and
+        std.math.approxEqRel(f64, a.spin, -b.spin, 1e-6) and
         !a.has_color and !b.has_color and
         a.mass > 0.0)
     {
@@ -141,7 +128,7 @@ fn handleAnnihilation(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
 fn handleDecay(p: *Self, emitted: *std.ArrayList(Self)) !bool {
     switch (describeParticle(p.*).?) {
         .Muon => {
-            try emitted.append(.{ .charge = -1.0, .mass = 0.511, .energy = p.energy * 0.3, .spin = 0.5, .has_color = false }); // Electron
+            try emitted.append(.{ .charge = -1.0, .mass = 0.51099895, .energy = p.energy * 0.3, .spin = 0.5, .has_color = false }); // Electron
             try emitted.append(.{ .charge = 0.0, .mass = 0.0, .energy = p.energy * 0.35, .spin = -0.5, .has_color = false }); // Electron antineutrino
             try emitted.append(.{ .charge = 0.0, .mass = 0.0, .energy = p.energy * 0.35, .spin = 0.5, .has_color = false }); // Muon neutrino
             return true;
@@ -153,18 +140,18 @@ fn handleDecay(p: *Self, emitted: *std.ArrayList(Self)) !bool {
             return true;
         },
         .WBosonPlus => {
-            try emitted.append(.{ .charge = 1.0, .mass = 0.511, .energy = p.energy * 0.5, .spin = -0.5, .has_color = false }); // Positron
+            try emitted.append(.{ .charge = 1.0, .mass = 0.51099895, .energy = p.energy * 0.5, .spin = -0.5, .has_color = false }); // Positron
             try emitted.append(.{ .charge = 0.0, .mass = 0.0, .energy = p.energy * 0.5, .spin = 0.5, .has_color = false }); // Electron neutrino
             return true;
         },
         .WBosonMinus => {
-            try emitted.append(.{ .charge = -1.0, .mass = 0.511, .energy = p.energy * 0.5, .spin = 0.5, .has_color = false }); // Electron
+            try emitted.append(.{ .charge = -1.0, .mass = 0.51099895, .energy = p.energy * 0.5, .spin = 0.5, .has_color = false }); // Electron
             try emitted.append(.{ .charge = 0.0, .mass = 0.0, .energy = p.energy * 0.5, .spin = -0.5, .has_color = false }); // Electron antineutrino
             return true;
         },
         .ZBoson => {
-            try emitted.append(.{ .charge = -1.0, .mass = 0.511, .energy = p.energy / 2.0, .spin = 0.5, .has_color = false }); // Electron
-            try emitted.append(.{ .charge = 1.0, .mass = 0.511, .energy = p.energy / 2.0, .spin = -0.5, .has_color = false }); // Positron
+            try emitted.append(.{ .charge = -1.0, .mass = 0.51099895, .energy = p.energy / 2.0, .spin = 0.5, .has_color = false }); // Electron
+            try emitted.append(.{ .charge = 1.0, .mass = 0.51099895, .energy = p.energy / 2.0, .spin = -0.5, .has_color = false }); // Positron
             return true;
         },
         .HiggsBoson => {
@@ -207,7 +194,7 @@ fn handleScattering(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
 /// If so, and if their combined energy exceeds the threshold for creating a particle-antiparticle pair,
 /// it simulates the creation of:
 /// - A muon-antimuon pair if energy > 211.32 MeV (2 × 105.66 MeV)
-/// - An electron-positron pair if energy > 1.022 MeV (2 × 0.511 MeV)
+/// - An electron-positron pair if energy > 1.022 MeV (2 × 0.51099895 MeV)
 ///
 /// The energy is equally divided between the two produced particles, and their spins are set to conserve angular momentum.
 fn handlePairProduction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
@@ -215,7 +202,7 @@ fn handlePairProduction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool
         const total_energy = a.energy + b.energy;
 
         const muon_mass = 105.66; // MeV
-        const electron_mass = 0.511; // MeV
+        const electron_mass = 0.51099895; // MeV
 
         if (total_energy >= 2.0 * muon_mass) {
             const energy_per_particle = total_energy / 2.0;
@@ -243,7 +230,7 @@ pub fn initializeGraph(allocator: std.mem.Allocator) !Graph(usize, Self) {
     });
     const random = prng.random();
 
-    const particle_count = 20;
+    const particle_count = 200;
 
     for (0..particle_count) |_| {
         const kind = random.enumValue(ParticleType);
@@ -260,7 +247,7 @@ pub fn initializeGraph(allocator: std.mem.Allocator) !Graph(usize, Self) {
             .StrangeQuark => .{ .charge = -1.0 / 3.0, .mass = 95.0, .spin = 0.5, .has_color = true },
             .TopQuark => .{ .charge = 2.0 / 3.0, .mass = 172760.0, .spin = 0.5, .has_color = true },
             .BottomQuark => .{ .charge = -1.0 / 3.0, .mass = 4180.0, .spin = 0.5, .has_color = true },
-            .Electron => .{ .charge = -1.0, .mass = 0.511, .spin = 0.5, .has_color = false },
+            .Electron => .{ .charge = -1.0, .mass = 0.51099895, .spin = 0.5, .has_color = false },
             .ElectronNeutrino => .{ .charge = 0.0, .mass = 0.0, .spin = 0.5, .has_color = false },
             .Muon => .{ .charge = -1.0, .mass = 105.66, .spin = 0.5, .has_color = false },
             .MuonNeutrino => .{ .charge = 0.0, .mass = 0.0, .spin = 0.5, .has_color = false },
@@ -272,6 +259,7 @@ pub fn initializeGraph(allocator: std.mem.Allocator) !Graph(usize, Self) {
             .ZBoson => .{ .charge = 0.0, .mass = 91.1876, .spin = 1.0, .has_color = false },
             .Gluon => .{ .charge = 0.0, .mass = 0.0, .spin = 1.0, .has_color = true },
             .HiggsBoson => .{ .charge = 0.0, .mass = 125100.0, .spin = 0.0, .has_color = false },
+            else => .{ .charge = 2.0 / 3.0, .mass = 2.3, .spin = 0.5, .has_color = true },
         };
 
         const energy = random.float(f64) * 1000.0;

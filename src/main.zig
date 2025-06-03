@@ -82,7 +82,7 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Partic
             break;
         }
     }
-    std.debug.print("\nNo. transactions to apply: {d}\n", .{transactions.count()});
+    std.debug.print("\nTransactions to apply: {d}\n", .{transactions.count()});
 
     // Apply interactions to graph
     var apply_index: usize = 0;

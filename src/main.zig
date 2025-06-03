@@ -8,6 +8,7 @@ const time = std.time;
 const useStat = options.stat;
 
 const Graph = uSim.Graph;
+const ParticleGraph = Graph(usize, Particle);
 
 const InteractionTransaction = struct {
     to: usize,
@@ -16,29 +17,25 @@ const InteractionTransaction = struct {
     consumed: bool,
 };
 
-fn connectNewParticle(graph: *Graph(usize, Particle), new_id: usize, source_id: usize) !void {
-    if (graph.getVertex(source_id)) |source| {
-        var new = graph.getVertex(new_id).?;
-        new.adjacency_set = try source.adjacency_set.clone();
-        new.incidency_set = try source.incidency_set.clone();
+fn connectNewParticle(graph: *ParticleGraph, new_id: usize, source: *ParticleGraph.Node) !void {
+    var new = graph.getVertex(new_id) orelse unreachable;
+    new.adjacency_set = try source.adjacency_set.clone();
+    new.incidency_set = try source.incidency_set.clone();
 
-        var adj_iter = source.adjacency_set.iterator();
-        while (adj_iter.next()) |entry| {
-            if (graph.getVertex(entry.key_ptr.*)) |adj_v| {
-                try adj_v.addIncEdge(new_id);
-            }
-        }
+    var adj_iter = source.adjacency_set.iterator();
+    while (adj_iter.next()) |entry| {
+        const adj_v = graph.getVertex(entry.key_ptr.*) orelse continue;
+        try adj_v.addIncEdge(new_id);
+    }
 
-        var inc_iter = source.incidency_set.iterator();
-        while (inc_iter.next()) |entry| {
-            if (graph.getVertex(entry.key_ptr.*)) |inc_v| {
-                try inc_v.addAdjEdge(new_id);
-            }
-        }
+    var inc_iter = source.incidency_set.iterator();
+    while (inc_iter.next()) |entry| {
+        const inc_v = graph.getVertex(entry.key_ptr.*) orelse continue;
+        try inc_v.addAdjEdge(new_id);
     }
 }
 
-fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Particle)) !void {
+fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !void {
     var transactions = std.AutoHashMap(usize, InteractionTransaction).init(allocator);
     var locks = std.AutoHashMap(usize, void).init(allocator);
     defer {
@@ -84,7 +81,7 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Partic
     // Apply interactions to graph
     var apply_index: usize = 0;
     var tx_iter = transactions.iterator();
-    while (tx_iter.next()) |entry| {
+    while (tx_iter.next()) |entry| : (apply_index += 1) {
         const from = entry.key_ptr.*;
         const tx = entry.value_ptr.*;
         const to = tx.to;
@@ -94,12 +91,12 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Partic
             .{ apply_index, from, to, tx.emitted.len, tx.consumed },
         );
 
-        apply_index += 1;
-
+        const source_from = graph.getVertex(from) orelse return;
+        const source_to = graph.getVertex(to) orelse return;
         for (tx.emitted) |p| {
             const new_id = try graph.addVertex(p);
-            try connectNewParticle(graph, new_id, from);
-            try connectNewParticle(graph, new_id, to);
+            try connectNewParticle(graph, new_id, source_from);
+            try connectNewParticle(graph, new_id, source_to);
         }
 
         if (tx.consumed) {
@@ -112,7 +109,7 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Partic
 fn logIteration(
     allocator: std.mem.Allocator,
     file: *std.fs.File,
-    graph: *Graph(usize, Particle),
+    graph: *ParticleGraph,
     iter: usize,
     iter_time: f64,
 ) !void {

@@ -9,8 +9,6 @@ const useStat = options.stat;
 
 const Graph = uSim.Graph;
 
-const MAX_EDGES_PER_PARTICLE = 2;
-
 const InteractionTransaction = struct {
     to: usize,
     emitted: []Particle,

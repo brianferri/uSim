@@ -45,7 +45,6 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *Graph(usize, Partic
     var locks = std.AutoHashMap(usize, void).init(allocator);
     defer {
         transactions.deinit();
-        locks.clearAndFree();
         locks.deinit();
     }
 

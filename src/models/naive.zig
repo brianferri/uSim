@@ -79,7 +79,7 @@ pub fn describeParticle(p: Self) ?ParticleType {
         return .WBosonMinus;
     } else if (approxEqual(f64, p.mass, 91187.6, 2.1) and approxEqual(f64, p.charge, 0.0, 0.001) and p.spin == 1.0 and !p.has_color) {
         return .ZBoson;
-    } else if (approxEqual(f64, p.mass, 0.0, 0.001) and approxEqual(f64, p.charge, 0.0, 0.001) and p.spin == 1.0 and p.has_color) {
+    } else if (p.mass == 0.0 and p.charge == 0.0 and p.spin == 1.0 and p.has_color) {
         return .Gluon;
     } else if (approxEqual(f64, p.mass, 125100.0, 300.0) and approxEqual(f64, p.charge, 0.0, 0.001) and p.spin == 0.0 and !p.has_color) {
         return .HiggsBoson;

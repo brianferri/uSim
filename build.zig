@@ -40,6 +40,15 @@ pub fn build(b: *std.Build) !void {
     });
     b.installArtifact(exe);
 
+    const install_docs = b.addInstallDirectory(.{
+        .source_dir = b.addLibrary(.{
+            .name = model,
+            .root_module = ulib_mod,
+        }).getEmittedDocs(),
+        .install_dir = .prefix,
+        .install_subdir = "docs",
+    });
+
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| run_cmd.addArgs(args);
@@ -56,6 +65,9 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
     test_step.dependOn(&run_exe_unit_tests.step);
+
+    const docs_step = b.step("docs", "Install docs into zig-out/docs");
+    docs_step.dependOn(&install_docs.step);
 
     const asm_step = b.step("asm", "Emit assembly file");
     const awf = b.addWriteFiles();

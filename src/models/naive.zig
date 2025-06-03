@@ -52,7 +52,7 @@ const ParticleType = enum {
 /// | Z Boson           | 91187.6       | ±2.1               | 0          | 1.0  | No           |
 /// | Gluon             | 0             | 0                  | 0          | 1.0  | Yes          |
 /// | Higgs Boson       | 125100        | ±300               | 0          | 0.0  | No           |
-pub fn describeParticle(p: Self) ?ParticleType {
+pub fn describeParticle(p: Self) ParticleType {
     const approxEqual = std.math.approxEqRel;
     // zig fmt: off
          if (approxEqual(f64, p.mass, 0.51099895, 0.00000015) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 0.5 and !p.has_color) return .Electron
@@ -126,7 +126,7 @@ fn handleAnnihilation(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
 ///
 /// The energy is distributed among the decay products based on typical decay kinematics.
 fn handleDecay(p: *Self, emitted: *std.ArrayList(Self)) !bool {
-    switch (describeParticle(p.*).?) {
+    switch (describeParticle(p.*)) {
         .Muon => {
             try emitted.append(.{ .charge = -1.0, .mass = 0.51099895, .energy = p.energy * 0.3, .spin = 0.5, .has_color = false }); // Electron
             try emitted.append(.{ .charge = 0.0, .mass = 0.0, .energy = p.energy * 0.35, .spin = -0.5, .has_color = false }); // Electron antineutrino
@@ -198,7 +198,7 @@ fn handleScattering(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
 ///
 /// The energy is equally divided between the two produced particles, and their spins are set to conserve angular momentum.
 fn handlePairProduction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
-    if (describeParticle(a.*).? == .Photon and describeParticle(b.*).? == .Photon) {
+    if (describeParticle(a.*) == .Photon and describeParticle(b.*) == .Photon) {
         const total_energy = a.energy + b.energy;
 
         const muon_mass = 105.66; // MeV
@@ -301,7 +301,7 @@ pub fn print(graph: *Graph(usize, Self)) void {
         total_edges += v.*.adjacency_set.count();
 
         const p = v.*.*.data;
-        counts[@intFromEnum(describeParticle(p).?)] += 1;
+        counts[@intFromEnum(describeParticle(p))] += 1;
         total_mass += p.mass;
         total_charge += p.charge;
         total_energy += p.energy;

@@ -3,7 +3,7 @@ const testing = std.testing;
 
 pub fn Graph(comptime K: type, comptime T: type) type {
     return struct {
-        const Node = struct {
+        pub const Node = struct {
             const FakeSet = std.AutoHashMap(K, void);
 
             data: T,

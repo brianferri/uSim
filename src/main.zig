@@ -37,26 +37,17 @@ fn connectNewParticle(graph: *ParticleGraph, new_id: usize, source: *ParticleGra
 
 fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !void {
     var transactions = std.AutoHashMap(usize, InteractionTransaction).init(allocator);
-    var locks = std.AutoHashMap(usize, void).init(allocator);
-    defer {
-        transactions.deinit();
-        locks.deinit();
-    }
+    defer transactions.deinit();
 
     // Collect interaction transactions
     var iter = graph.vertices.keyIterator();
     while (iter.next()) |from_id| {
-        if (locks.contains(from_id.*)) continue;
+        if (transactions.contains(from_id.*)) continue;
 
         const from = graph.getVertex(from_id.*) orelse continue;
         var to_it = from.adjacency_set.keyIterator();
         while (to_it.next()) |to_id| {
-            if (from_id.* == to_id.*) continue;
-            if (locks.contains(to_id.*)) continue;
-
-            try locks.put(from_id.*, {});
-            try locks.put(to_id.*, {});
-
+            if (from_id.* == to_id.* or transactions.contains(to_id.*)) continue;
             const to = graph.getVertex(to_id.*) orelse continue;
 
             std.debug.print(
@@ -82,8 +73,8 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !voi
     var apply_index: usize = 0;
     var tx_iter = transactions.iterator();
     while (tx_iter.next()) |entry| : (apply_index += 1) {
-        const from = entry.key_ptr.*;
         const tx = entry.value_ptr.*;
+        const from = entry.key_ptr.*;
         const to = tx.to;
 
         std.debug.print(

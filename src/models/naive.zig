@@ -21,6 +21,7 @@ const ParticleType = enum {
     StrangeQuark,
     TopQuark,
     BottomQuark,
+    Positron,
     Electron,
     ElectronNeutrino,
     Muon,
@@ -45,19 +46,23 @@ const ParticleType = enum {
 /// | Top Quark         | 171770        | ±380               | +2/3       | 0.5  | Yes          |
 /// | Bottom Quark      | 4180          | ±30                | -1/3       | 0.5  | Yes          |
 /// | Electron          | 0.51099895    | ±0.00000015        | -1         | 0.5  | No           |
+/// | Positron          | 0.51099895    | ±0.00000015        | +1         | 0.5  | No           |
 /// | Electron Neutrino | <0.8          | N/A                | 0          | 0.5  | No           |
 /// | Muon              | 105.6583755   | ±0.0000023         | -1         | 0.5  | No           |
 /// | Tau               | 1776.86       | ±0.12              | -1         | 0.5  | No           |
+/// | Gluon             | 0             | 0                  | 0          | 1.0  | Yes          |
+/// | Photon            | 0             | 0                  | 0          | 1.0  | No           |
 /// | W Boson           | 80379         | ±12                | ±1         | 1.0  | No           |
 /// | Z Boson           | 91187.6       | ±2.1               | 0          | 1.0  | No           |
-/// | Gluon             | 0             | 0                  | 0          | 1.0  | Yes          |
 /// | Higgs Boson       | 125100        | ±300               | 0          | 0.0  | No           |
 pub fn describeParticle(p: Self) ParticleType {
     const approxEqual = std.math.approxEqRel;
     // zig fmt: off
          if (approxEqual(f64, p.mass, 0.51099895, 0.00000015) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 0.5 and !p.has_color) return .Electron
+    else if (approxEqual(f64, p.mass, 0.51099895, 0.00000015) and approxEqual(f64, p.charge, 1.0, 0.01) and p.spin == -0.5 and !p.has_color) return .Positron
     else if (approxEqual(f64, p.mass, 2.16, 0.49) and approxEqual(f64, p.charge, 2.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) return .UpQuark
     else if (p.mass == 0.0 and p.charge == 0.0 and p.spin == 1.0 and p.has_color) return .Gluon
+    else if (p.mass == 0.0 and p.charge == 0.0 and @abs(p.spin) == 1.0 and !p.has_color) return .Photon
     else if (p.mass < 0.8 and approxEqual(f64, p.charge, 0.0, 0.001) and p.spin == 0.5 and !p.has_color) return .ElectronNeutrino
     else if (approxEqual(f64, p.mass, 4.67, 0.48) and approxEqual(f64, p.charge, -1.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) return .DownQuark
     else if (approxEqual(f64, p.mass, 93.0, 11.0) and approxEqual(f64, p.charge, -1.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) return .StrangeQuark

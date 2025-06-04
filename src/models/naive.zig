@@ -172,6 +172,7 @@ fn handleDecay(p: *Self, emitted: *std.ArrayList(Self)) !bool {
 /// The emitted radiation carries away a portion of the total energy (10%), which is equally
 /// subtracted from both particles to conserve energy.
 fn handleScattering(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
+    if ((a.energy + b.energy) < 1.0) return false;
     const emission_energy = (a.energy + b.energy) * 0.1;
 
     if (a.charge != 0.0 or b.charge != 0.0) {

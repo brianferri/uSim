@@ -278,7 +278,7 @@ pub fn initializeGraph(allocator: std.mem.Allocator) !Graph(usize, Self) {
             .has_color = info.has_color,
         };
 
-        _ = try graph.addVertex(i, p);
+        _ = try graph.putVertex(i, p);
     }
 
     if (graph.vertices.count() >= 2) {

@@ -87,7 +87,7 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !voi
         const vertex_count = graph.vertices.count();
         for (tx.emitted, 0..) |p, i| {
             const new_id = vertex_count + i;
-            try graph.addVertex(new_id, p);
+            try graph.putVertex(new_id, p);
             try connectNewParticle(graph, new_id, source_from);
             try connectNewParticle(graph, new_id, source_to);
         }

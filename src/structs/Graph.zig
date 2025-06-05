@@ -74,7 +74,7 @@ pub fn Graph(comptime K: type, comptime T: type) type {
             self.* = undefined;
         }
 
-        pub fn addVertex(self: *Self, index: K, data: T) !void {
+        pub fn putVertex(self: *Self, index: K, data: T) !void {
             const node = try self.allocator.create(Node);
             node.* = Node.init(self.allocator, data);
             try self.vertices.put(index, node);

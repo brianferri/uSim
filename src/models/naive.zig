@@ -227,7 +227,7 @@ fn handlePairProduction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool
 }
 
 pub fn initializeGraph(allocator: std.mem.Allocator) !Graph(usize, Self) {
-    var graph = Graph(usize, Self).init(allocator, 0);
+    var graph: Graph(usize, Self) = .init(allocator);
 
     var prng = std.Random.DefaultPrng.init(blk: {
         var seed: u64 = undefined;
@@ -236,9 +236,9 @@ pub fn initializeGraph(allocator: std.mem.Allocator) !Graph(usize, Self) {
     });
     const random = prng.random();
 
-    const particle_count = 200;
+    const particle_count = 5000;
 
-    for (0..particle_count) |_| {
+    for (0..particle_count) |i| {
         const kind = random.enumValue(ParticleType);
 
         const info: struct {
@@ -278,7 +278,7 @@ pub fn initializeGraph(allocator: std.mem.Allocator) !Graph(usize, Self) {
             .has_color = info.has_color,
         };
 
-        _ = try graph.addVertex(p);
+        _ = try graph.addVertex(i, p);
     }
 
     if (graph.vertices.count() >= 2) {

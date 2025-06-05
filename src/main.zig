@@ -84,8 +84,10 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !voi
 
         const source_from = graph.getVertex(from) orelse return;
         const source_to = graph.getVertex(to) orelse return;
-        for (tx.emitted) |p| {
-            const new_id = try graph.addVertex(p);
+        const vertex_count = graph.vertices.count();
+        for (tx.emitted, 0..) |p, i| {
+            const new_id = vertex_count + i;
+            try graph.addVertex(new_id, p);
             try connectNewParticle(graph, new_id, source_from);
             try connectNewParticle(graph, new_id, source_to);
         }

@@ -51,16 +51,14 @@ pub fn Graph(comptime K: type, comptime T: type) type {
 
         const Vertices = std.AutoHashMap(K, *Node);
         const Self = @This();
+
         allocator: std.mem.Allocator,
-
         vertices: Vertices,
-        next_vertex_index: K,
 
-        pub fn init(allocator: std.mem.Allocator, initial_index: K) Self {
+        pub fn init(allocator: std.mem.Allocator) Self {
             return .{
                 .allocator = allocator,
                 .vertices = Vertices.init(allocator),
-                .next_vertex_index = initial_index,
             };
         }
 
@@ -76,13 +74,10 @@ pub fn Graph(comptime K: type, comptime T: type) type {
             self.* = undefined;
         }
 
-        pub fn addVertex(self: *Self, data: T) !K {
+        pub fn addVertex(self: *Self, index: K, data: T) !void {
             const node = try self.allocator.create(Node);
             node.* = Node.init(self.allocator, data);
-
-            try self.vertices.put(self.next_vertex_index, node);
-            self.next_vertex_index += 1;
-            return self.next_vertex_index - 1;
+            try self.vertices.put(index, node);
         }
 
         pub fn getVertex(self: *Self, index: K) ?*Node {

@@ -159,107 +159,107 @@ pub fn Graph(comptime K: type, comptime T: type) type {
 }
 
 test "graph initialization" {
-    var graph = Graph(usize, u32).init(testing.allocator, 0);
+    var graph = Graph(usize, u32).init(testing.allocator);
     defer graph.deinit();
 }
 
 test "add vertex" {
-    var graph = Graph(usize, u32).init(testing.allocator, 0);
+    var graph = Graph(usize, u32).init(testing.allocator);
     defer graph.deinit();
 
-    const index = try graph.addVertex(123);
+    try graph.putVertex(1, 123);
 
-    try testing.expect(graph.getVertexData(index) == 123);
+    try testing.expect(graph.getVertexData(1) == 123);
 }
 
 test "add and remove vertex" {
-    var graph = Graph(usize, u32).init(testing.allocator, 0);
+    var graph = Graph(usize, u32).init(testing.allocator);
     defer graph.deinit();
 
-    const index = try graph.addVertex(123);
+    try graph.putVertex(1, 123);
 
-    try testing.expect(graph.getVertexData(index) == 123);
-    try testing.expect(graph.removeVertex(index) == true);
-    try testing.expect(graph.getVertexData(index) == null);
+    try testing.expect(graph.getVertexData(1) == 123);
+    try testing.expect(graph.removeVertex(1) == true);
+    try testing.expect(graph.getVertexData(1) == null);
 }
 
 test "add edge between two vertices" {
-    var graph = Graph(usize, u32).init(testing.allocator, 0);
+    var graph = Graph(usize, u32).init(testing.allocator);
     defer graph.deinit();
 
-    const index1 = try graph.addVertex(123);
-    const index2 = try graph.addVertex(456);
+    try graph.putVertex(1, 123);
+    try graph.putVertex(2, 456);
 
-    try testing.expect(!graph.hasAdjEdge(index1, index2));
-    try graph.addEdge(index1, index2);
-    try testing.expect(graph.hasAdjEdge(index1, index2));
+    try testing.expect(!graph.hasAdjEdge(1, 2));
+    try graph.addEdge(1, 2);
+    try testing.expect(graph.hasAdjEdge(1, 2));
 }
 
 test "add and remove an edge" {
-    var graph = Graph(usize, u32).init(testing.allocator, 0);
+    var graph = Graph(usize, u32).init(testing.allocator);
     defer graph.deinit();
 
-    const index1 = try graph.addVertex(123);
-    const index2 = try graph.addVertex(456);
+    try graph.putVertex(1, 123);
+    try graph.putVertex(2, 456);
 
-    try graph.addEdge(index1, index2);
-    try testing.expect(graph.hasAdjEdge(index1, index2));
+    try graph.addEdge(1, 2);
+    try testing.expect(graph.hasAdjEdge(1, 2));
 
-    try graph.removeEdge(index1, index2);
-    try testing.expect(!graph.hasAdjEdge(index1, index2));
+    try graph.removeEdge(1, 2);
+    try testing.expect(!graph.hasAdjEdge(1, 2));
 }
 
 test "add vertexes and edges, remove vertex, test for edges" {
-    var graph = Graph(usize, u32).init(testing.allocator, 0);
+    var graph = Graph(usize, u32).init(testing.allocator);
     defer graph.deinit();
 
-    const index1 = try graph.addVertex(123);
-    try testing.expect(graph.getVertexData(index1) == 123);
-    const index2 = try graph.addVertex(456);
-    try testing.expect(graph.getVertexData(index2) == 456);
+    try graph.putVertex(1, 123);
+    try testing.expect(graph.getVertexData(1) == 123);
+    try graph.putVertex(2, 456);
+    try testing.expect(graph.getVertexData(2) == 456);
 
-    try testing.expect(!graph.hasAdjEdge(index1, index2));
-    try graph.addEdge(index1, index2);
-    try testing.expect(graph.hasAdjEdge(index1, index2));
+    try testing.expect(!graph.hasAdjEdge(1, 2));
+    try graph.addEdge(1, 2);
+    try testing.expect(graph.hasAdjEdge(1, 2));
 
-    try testing.expect(!graph.hasAdjEdge(index2, index1));
-    try graph.addEdge(index2, index1);
-    try testing.expect(graph.hasAdjEdge(index2, index1));
+    try testing.expect(!graph.hasAdjEdge(2, 1));
+    try graph.addEdge(2, 1);
+    try testing.expect(graph.hasAdjEdge(2, 1));
 
-    try testing.expect(graph.removeVertex(index1));
-    try testing.expect(graph.getVertexData(index1) == null);
-    try testing.expect(!graph.hasAdjEdge(index1, index2));
-    try testing.expect(!graph.hasAdjEdge(index2, index1));
+    try testing.expect(graph.removeVertex(1));
+    try testing.expect(graph.getVertexData(1) == null);
+    try testing.expect(!graph.hasAdjEdge(1, 2));
+    try testing.expect(!graph.hasAdjEdge(2, 1));
 }
 
 test "getting neighbors" {
-    var graph = Graph(usize, u32).init(testing.allocator, 0);
+    var graph = Graph(usize, u32).init(testing.allocator);
     defer graph.deinit();
 
-    const index1 = try graph.addVertex(123);
-    try testing.expect(graph.getVertexData(index1) == 123);
-    const index2 = try graph.addVertex(456);
-    try testing.expect(graph.getVertexData(index2) == 456);
+    try graph.putVertex(1, 123);
+    try testing.expect(graph.getVertexData(1) == 123);
+    try graph.putVertex(2, 456);
+    try testing.expect(graph.getVertexData(2) == 456);
 
-    try testing.expect(!graph.hasAdjEdge(index1, index2));
-    try graph.addEdge(index1, index2);
-    try testing.expect(graph.hasAdjEdge(index1, index2));
+    try testing.expect(!graph.hasAdjEdge(1, 2));
+    try graph.addEdge(1, 2);
+    try testing.expect(graph.hasAdjEdge(1, 2));
 
-    try testing.expect(graph.getVertex(index1).?.pointsTo(index2));
-    try testing.expect(!graph.getVertex(index2).?.pointsTo(index1));
+    try testing.expect(graph.getVertex(1).?.pointsTo(2));
+    try testing.expect(!graph.getVertex(2).?.pointsTo(1));
 
-    try testing.expect(graph.getVertex(index2).?.pointedBy(index1));
-    try testing.expect(!graph.getVertex(index1).?.pointedBy(index2));
+    try testing.expect(graph.getVertex(2).?.pointedBy(1));
+    try testing.expect(!graph.getVertex(1).?.pointedBy(2));
 }
 
 test "graph in a graph" {
-    var graph = Graph(usize, Graph(usize, u32)).init(testing.allocator, 0);
+    var graph = Graph(usize, Graph(usize, u32)).init(testing.allocator);
     defer graph.deinit();
 
-    const index = try graph.addVertex(Graph(usize, u32).init(testing.allocator, 0));
-    var inner_graph_data: Graph(usize, u32) = graph.getVertexData(index).?;
+    try graph.putVertex(1, Graph(usize, u32).init(testing.allocator));
+    var inner_graph_data: Graph(usize, u32) = graph.getVertexData(1).?;
     defer inner_graph_data.deinit();
 
-    const inner_index = try inner_graph_data.addVertex(123);
-    try testing.expect(inner_graph_data.getVertexData(inner_index) == 123);
+    try inner_graph_data.putVertex(1, 123);
+    try testing.expect(inner_graph_data.getVertexData(1) == 123);
 }

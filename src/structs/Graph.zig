@@ -159,12 +159,12 @@ pub fn Graph(comptime K: type, comptime T: type) type {
 }
 
 test "graph initialization" {
-    var graph = Graph(usize, u32).init(testing.allocator);
+    var graph: Graph(usize, u32) = .init(testing.allocator);
     defer graph.deinit();
 }
 
 test "add vertex" {
-    var graph = Graph(usize, u32).init(testing.allocator);
+    var graph: Graph(usize, u32) = .init(testing.allocator);
     defer graph.deinit();
 
     try graph.putVertex(1, 123);
@@ -173,7 +173,7 @@ test "add vertex" {
 }
 
 test "add and remove vertex" {
-    var graph = Graph(usize, u32).init(testing.allocator);
+    var graph: Graph(usize, u32) = .init(testing.allocator);
     defer graph.deinit();
 
     try graph.putVertex(1, 123);
@@ -184,7 +184,7 @@ test "add and remove vertex" {
 }
 
 test "add edge between two vertices" {
-    var graph = Graph(usize, u32).init(testing.allocator);
+    var graph: Graph(usize, u32) = .init(testing.allocator);
     defer graph.deinit();
 
     try graph.putVertex(1, 123);
@@ -196,7 +196,7 @@ test "add edge between two vertices" {
 }
 
 test "add and remove an edge" {
-    var graph = Graph(usize, u32).init(testing.allocator);
+    var graph: Graph(usize, u32) = .init(testing.allocator);
     defer graph.deinit();
 
     try graph.putVertex(1, 123);
@@ -210,7 +210,7 @@ test "add and remove an edge" {
 }
 
 test "add vertexes and edges, remove vertex, test for edges" {
-    var graph = Graph(usize, u32).init(testing.allocator);
+    var graph: Graph(usize, u32) = .init(testing.allocator);
     defer graph.deinit();
 
     try graph.putVertex(1, 123);
@@ -233,7 +233,7 @@ test "add vertexes and edges, remove vertex, test for edges" {
 }
 
 test "getting neighbors" {
-    var graph = Graph(usize, u32).init(testing.allocator);
+    var graph: Graph(usize, u32) = .init(testing.allocator);
     defer graph.deinit();
 
     try graph.putVertex(1, 123);

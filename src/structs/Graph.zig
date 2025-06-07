@@ -13,8 +13,8 @@ pub fn Graph(comptime K: type, comptime T: type) type {
             pub fn init(allocator: std.mem.Allocator, data: T) Node {
                 return .{
                     .data = data,
-                    .adjacency_set = FakeSet.init(allocator),
-                    .incidency_set = FakeSet.init(allocator),
+                    .adjacency_set = .init(allocator),
+                    .incidency_set = .init(allocator),
                 };
             }
 
@@ -58,7 +58,7 @@ pub fn Graph(comptime K: type, comptime T: type) type {
         pub fn init(allocator: std.mem.Allocator) Self {
             return .{
                 .allocator = allocator,
-                .vertices = Vertices.init(allocator),
+                .vertices = .init(allocator),
             };
         }
 

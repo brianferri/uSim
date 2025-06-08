@@ -11,15 +11,6 @@
                 "kind": "build",
                 "isDefault": true
             }
-        },
-        {
-            "label": "build:safe",
-            "type": "shell",
-            "command": "zig build -Doptimize=ReleaseSafe",
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            }
         }
     ]
 }

@@ -196,6 +196,8 @@ fn handleScattering(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
 
 /// Simulates the pair production process where two photons convert into a particle-antiparticle pair.
 ///
+/// NOTE this is completely wrong btw
+///
 /// This function checks if both interacting particles are photons (massless, neutral, no color charge).
 /// If so, and if their combined energy exceeds the threshold for creating a particle-antiparticle pair,
 /// it simulates the creation of:

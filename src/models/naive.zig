@@ -228,7 +228,7 @@ fn handlePairProduction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool
     return false;
 }
 
-pub fn initializeGraph(allocator: std.mem.Allocator) !Graph(usize, Self) {
+pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_int) !Graph(usize, Self) {
     var graph: Graph(usize, Self) = .init(allocator);
 
     var prng = std.Random.DefaultPrng.init(blk: {
@@ -237,8 +237,6 @@ pub fn initializeGraph(allocator: std.mem.Allocator) !Graph(usize, Self) {
         break :blk seed;
     });
     const random = prng.random();
-
-    const particle_count = 5000;
 
     for (0..particle_count) |i| {
         const kind = random.enumValue(ParticleType);

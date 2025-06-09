@@ -6,6 +6,7 @@ const options = @import("options");
 
 const time = std.time;
 const useStat = options.stat;
+const ipc = options.initial_particle_count;
 
 const Graph = uSim.Graph;
 const ParticleGraph = Graph(usize, Particle);
@@ -131,8 +132,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
     var outer_timer = try time.Timer.start();
-
-    var graph = try Particle.initializeGraph(allocator);
+    var graph = try Particle.initializeGraph(allocator, ipc);
     defer graph.deinit();
     Particle.print(&graph);
     std.debug.print("Initialized in: {d:.3}ms\n", .{@as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms});

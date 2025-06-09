@@ -6,11 +6,13 @@ pub fn build(b: *std.Build) !void {
 
     const model = b.option([]const u8, "implementation", "The model to use for particles/interactions") orelse "naive";
     const stat = b.option(bool, "stat", "Use stat to keep track of usages (Linux)") orelse false;
+    const initial_particle_count = b.option(usize, "ipc", "The number of particles to have the simulation start with") orelse 1;
 
     const model_path = try std.fmt.allocPrint(b.allocator, "src/models/{s}.zig", .{model});
 
     const options = b.addOptions();
     options.addOption(bool, "stat", stat);
+    options.addOption(usize, "initial_particle_count", initial_particle_count);
 
     const ulib_mod = b.createModule(.{
         .root_source_file = b.path(model_path),

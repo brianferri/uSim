@@ -133,16 +133,19 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     var outer_timer = try time.Timer.start();
     var graph = try Particle.initializeGraph(allocator, ipc);
-    defer graph.deinit();
-    Particle.print(&graph);
     std.debug.print("Initialized in: {d:.3}ms\n", .{@as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms});
+    defer graph.deinit();
 
     var file = try std.fs.cwd().createFile("zig-out/out.csv", .{});
     defer file.close();
     _ = try file.write("iter,vertices,num_edges,iter_time,mem\n");
 
+    var particle_stats_file = try std.fs.cwd().createFile("zig-out/parts.csv", .{});
+    defer file.close();
+    try Particle.print(&graph, allocator, &particle_stats_file, 0);
+
     var graph_state = graph;
-    var i: usize = 0;
+    var i: usize = 1;
     while (true) : (i += 1) {
         std.debug.print("Calculating iter: {d}...\n", .{i});
 
@@ -154,7 +157,7 @@ pub fn main() !void {
         std.debug.print("\x1B[2J\x1B[H", .{});
         std.debug.print("iter: {d} | time: {d}\n", .{ i, iter_time });
         if (std.meta.eql(graph, graph_state) and i != 0) break; //? Reached stable state
-        Particle.print(&graph);
+        try Particle.print(&graph, allocator, &particle_stats_file, i);
 
         if (graph.vertices.count() == 0) break;
         graph_state = graph;

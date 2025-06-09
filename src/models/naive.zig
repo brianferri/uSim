@@ -293,7 +293,12 @@ pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_in
     return graph;
 }
 
-pub fn print(graph: *Graph(usize, Self)) void {
+pub fn print(
+    graph: *Graph(usize, Self),
+    allocator: std.mem.Allocator,
+    file: *std.fs.File,
+    iter: usize,
+) !void {
     const num_vertices: usize = graph.vertices.count();
     var total_edges: usize = 0;
 
@@ -327,4 +332,25 @@ pub fn print(graph: *Graph(usize, Self)) void {
         std.debug.print("{s}: {any}\n", .{ field.name, counts[i] });
 
     std.debug.print("-----------------------------\n\n", .{});
+
+    if (iter == 0) {
+        try file.writeAll("iter,vertices,num_edges,total_mass,total_charge,total_energy");
+        inline for (@typeInfo(ParticleType).@"enum".fields) |field|
+            try file.writeAll(try std.fmt.allocPrint(allocator, ",{s}", .{field.name}));
+        try file.writeAll("\n");
+    }
+
+    try file.writeAll(try std.fmt.allocPrint(allocator, "{d},{d},{d},{d:.3},{d:.3},{d:.3}", .{
+        iter,
+        num_vertices,
+        total_edges,
+        total_mass,
+        total_charge,
+        total_energy,
+    }));
+
+    inline for (counts) |c|
+        try file.writeAll(try std.fmt.allocPrint(allocator, ",{d}", .{c}));
+
+    try file.writeAll("\n");
 }

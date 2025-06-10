@@ -18,7 +18,9 @@ const InteractionTransaction = struct {
     consumed: bool,
 };
 
-fn connectNewParticle(graph: *ParticleGraph, new_id: usize, source: *ParticleGraph.Node) !void {
+/// Clones adjacency and incidency sets from a source node to a new node,
+/// and updates adjacent and incident vertices to reference the new node.
+fn connectClonedEdges(graph: *ParticleGraph, new_id: usize, source: *ParticleGraph.Node) !void {
     var new = graph.getVertex(new_id) orelse unreachable;
     new.adjacency_set = try source.adjacency_set.clone();
     new.incidency_set = try source.incidency_set.clone();
@@ -36,41 +38,42 @@ fn connectNewParticle(graph: *ParticleGraph, new_id: usize, source: *ParticleGra
     }
 }
 
-fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !void {
-    var transactions = std.AutoHashMap(usize, InteractionTransaction).init(allocator);
-    defer transactions.deinit();
+/// Gathers a map of particle interaction transactions by evaluating all eligible vertex pairs.
+fn collectInteractionTransactions(allocator: std.mem.Allocator, graph: *ParticleGraph) !std.AutoHashMap(usize, InteractionTransaction) {
+    var transactions: std.AutoHashMap(usize, InteractionTransaction) = .init(allocator);
 
-    // Collect interaction transactions
     var iter = graph.vertices.keyIterator();
     while (iter.next()) |from_id| {
         if (transactions.contains(from_id.*)) continue;
 
         const from = graph.getVertex(from_id.*) orelse continue;
         var to_it = from.adjacency_set.keyIterator();
-        while (to_it.next()) |to_id| {
-            if (from_id.* == to_id.* or transactions.contains(to_id.*)) continue;
-            const to = graph.getVertex(to_id.*) orelse continue;
+        const to_id = to_it.next() orelse continue;
+        if (from_id.* == to_id.* or transactions.contains(to_id.*)) continue;
 
-            std.debug.print(
-                "\rInteracting: v1 = {d} (edges: {d}), v2 = {d} (edges: {d})\x1B[0K",
-                .{ from_id.*, from.adjacency_set.count(), to_id.*, to.adjacency_set.count() },
-            );
+        const to = graph.getVertex(to_id.*) orelse continue;
 
-            var emitted = std.ArrayList(Particle).init(allocator);
-            const consumed = try Particle.interact(&from.data, &to.data, &emitted);
+        std.debug.print(
+            "\rInteracting: v1 = {d} (edges: {d}), v2 = {d} (edges: {d})\x1B[0K",
+            .{ from_id.*, from.adjacency_set.count(), to_id.*, to.adjacency_set.count() },
+        );
 
-            try transactions.put(from_id.*, .{
-                .to = to_id.*,
-                .emitted = try emitted.toOwnedSlice(),
-                .consumed = consumed,
-            });
+        var emitted: std.ArrayList(Particle) = .init(allocator);
+        const consumed = try Particle.interact(&from.data, &to.data, &emitted);
 
-            break;
-        }
+        try transactions.put(from_id.*, .{
+            .to = to_id.*,
+            .emitted = try emitted.toOwnedSlice(),
+            .consumed = consumed,
+        });
     }
-    std.debug.print("\nTransactions to apply: {d}\n", .{transactions.count()});
 
-    // Apply interactions to graph
+    std.debug.print("\nTransactions to apply: {d}\n", .{transactions.count()});
+    return transactions;
+}
+
+/// Applies the provided list of interaction transactions to the particle graph.
+fn applyTransactions(graph: *ParticleGraph, transactions: *std.AutoHashMap(usize, InteractionTransaction)) !void {
     var apply_index: usize = 0;
     var tx_iter = transactions.iterator();
     while (tx_iter.next()) |entry| : (apply_index += 1) {
@@ -89,8 +92,8 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !voi
         for (tx.emitted, 0..) |p, i| {
             const new_id = vertex_count + i;
             try graph.putVertex(new_id, p);
-            try connectNewParticle(graph, new_id, source_from);
-            try connectNewParticle(graph, new_id, source_to);
+            try connectClonedEdges(graph, new_id, source_from);
+            try connectClonedEdges(graph, new_id, source_to);
         }
 
         if (tx.consumed) {
@@ -98,6 +101,14 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !voi
             _ = graph.removeVertex(to);
         }
     }
+}
+
+/// Processes all particle interactions in the graph, applies emitted particles, and removes consumed particles.
+fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !void {
+    var transactions = try collectInteractionTransactions(allocator, graph);
+    defer transactions.deinit();
+
+    try applyTransactions(graph, &transactions);
 }
 
 fn logIteration(

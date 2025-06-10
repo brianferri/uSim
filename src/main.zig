@@ -152,7 +152,7 @@ pub fn main() !void {
     _ = try file.write("iter,vertices,num_edges,iter_time,mem\n");
 
     var particle_stats_file = try std.fs.cwd().createFile("zig-out/parts.csv", .{});
-    defer file.close();
+    defer particle_stats_file.close();
     try Particle.print(&graph, allocator, &particle_stats_file, 0);
 
     var graph_state = graph;

@@ -3,7 +3,7 @@ const uSim = @import("usim");
 
 const Graph = uSim.Graph;
 
-const Self = @This();
+const Particle = @This();
 
 /// e
 charge: f64,
@@ -55,7 +55,7 @@ const ParticleType = enum {
 /// | W Boson           | 80379         | ±12                | ±1         | 1.0  | No           |
 /// | Z Boson           | 91187.6       | ±2.1               | 0          | 1.0  | No           |
 /// | Higgs Boson       | 125100        | ±300               | 0          | 0.0  | No           |
-pub fn describeParticle(p: Self) ParticleType {
+pub fn describeParticle(p: Particle) ParticleType {
     const approxEqual = std.math.approxEqRel;
     // zig fmt: off
          if (approxEqual(f64, p.mass, 0.51099895, 0.00000015) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 0.5 and !p.has_color) return .Electron
@@ -81,7 +81,7 @@ pub fn describeParticle(p: Self) ParticleType {
 }
 
 /// Returns `true` if the emission consumed the interacting particles
-pub fn interact(self: *Self, other: *Self, emission_buffer: *std.ArrayList(Self)) !bool {
+pub fn interact(self: *Particle, other: *Particle, emission_buffer: *std.ArrayList(Particle)) !bool {
     if (try handleAnnihilation(self, other, emission_buffer)) return true;
     if (try handlePairProduction(self, other, emission_buffer)) return true;
 
@@ -104,7 +104,7 @@ pub fn interact(self: *Self, other: *Self, emission_buffer: *std.ArrayList(Self)
 ///
 /// If these conditions are met, it simulates their annihilation into two photons,
 /// each carrying half of the total energy and opposite spins to conserve angular momentum.
-fn handleAnnihilation(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
+fn handleAnnihilation(a: *Particle, b: *Particle, emitted: *std.ArrayList(Particle)) !bool {
     if (std.math.approxEqRel(f64, a.charge, -b.charge, 1e-6) and
         std.math.approxEqRel(f64, a.mass, b.mass, 1e-6) and
         std.math.approxEqRel(f64, a.spin, -b.spin, 1e-6) and
@@ -130,7 +130,7 @@ fn handleAnnihilation(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
 /// - **Higgs Boson (H⁰):** Decays into a pair of photons.
 ///
 /// The energy is distributed among the decay products based on typical decay kinematics.
-fn handleDecay(p: *Self, emitted: *std.ArrayList(Self)) !bool {
+fn handleDecay(p: *Particle, emitted: *std.ArrayList(Particle)) !bool {
     switch (describeParticle(p.*)) {
         .Muon => {
             try emitted.append(.{ .charge = -1.0, .mass = 0.51099895, .energy = p.energy * 0.3, .spin = 0.5, .has_color = false }); // Electron
@@ -176,7 +176,7 @@ fn handleDecay(p: *Self, emitted: *std.ArrayList(Self)) !bool {
 ///
 /// The emitted radiation carries away a portion of the total energy (10%), which is equally
 /// subtracted from both particles to conserve energy.
-fn handleScattering(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
+fn handleScattering(a: *Particle, b: *Particle, emitted: *std.ArrayList(Particle)) !bool {
     if ((a.energy + b.energy) < 1.0) return false;
     const emission_energy = (a.energy + b.energy) * 0.1;
 
@@ -205,7 +205,7 @@ fn handleScattering(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
 /// - An electron-positron pair if energy > 1.022 MeV (2 × 0.51099895 MeV)
 ///
 /// The energy is equally divided between the two produced particles, and their spins are set to conserve angular momentum.
-fn handlePairProduction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool {
+fn handlePairProduction(a: *Particle, b: *Particle, emitted: *std.ArrayList(Particle)) !bool {
     if (describeParticle(a.*) == .Photon and describeParticle(b.*) == .Photon) {
         const total_energy = a.energy + b.energy;
 
@@ -228,8 +228,8 @@ fn handlePairProduction(a: *Self, b: *Self, emitted: *std.ArrayList(Self)) !bool
     return false;
 }
 
-pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_int) !Graph(usize, Self) {
-    var graph: Graph(usize, Self) = .init(allocator);
+pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_int) !Graph(usize, Particle) {
+    var graph: Graph(usize, Particle) = .init(allocator);
 
     var prng = std.Random.DefaultPrng.init(blk: {
         var seed: u64 = undefined;
@@ -270,7 +270,7 @@ pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_in
 
         const energy = random.float(f64) * 1000.0;
 
-        const p: Self = .{
+        const p: Particle = .{
             .charge = info.charge,
             .mass = info.mass,
             .energy = energy,
@@ -294,7 +294,7 @@ pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_in
 }
 
 pub fn print(
-    graph: *Graph(usize, Self),
+    graph: *Graph(usize, Particle),
     allocator: std.mem.Allocator,
     file: *std.fs.File,
     iter: usize,

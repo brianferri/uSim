@@ -4,11 +4,11 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const model = b.option([]const u8, "implementation", "The model to use for particles/interactions") orelse "naive";
+    const model = b.option([]const u8, "model", "The example model to use for particles/interactions") orelse "naive";
     const stat = b.option(bool, "stat", "Use stat to keep track of usages (Linux)") orelse false;
     const initial_particle_count = b.option(usize, "ipc", "The number of particles to have the simulation start with") orelse 1;
 
-    const model_path = try std.fmt.allocPrint(b.allocator, "src/models/{s}.zig", .{model});
+    const model_path = try std.fmt.allocPrint(b.allocator, "examples/{s}/main.zig", .{model});
 
     const options = b.addOptions();
     options.addOption(bool, "stat", stat);

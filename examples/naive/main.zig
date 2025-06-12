@@ -66,7 +66,7 @@ pub fn describeParticle(p: Particle) ParticleType {
     else if (p.mass < 0.8 and approxEqual(f64, p.charge, 0.0, 0.001) and p.spin == 0.5 and !p.has_color) return .ElectronNeutrino
     else if (approxEqual(f64, p.mass, 4.67, 0.48) and approxEqual(f64, p.charge, -1.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) return .DownQuark
     else if (approxEqual(f64, p.mass, 93.0, 11.0) and approxEqual(f64, p.charge, -1.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) return .StrangeQuark
-    else if (approxEqual(f64, p.mass, 105.6583755, 0.0000023) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 0.5 and !p.has_color) return .Muon
+    else if (approxEqual(f64, p.mass, 105.6583755, 0.23) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 0.5 and !p.has_color) return .Muon
     else if (approxEqual(f64, p.mass, 1275.0, 25.0) and approxEqual(f64, p.charge, 2.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) return .CharmQuark
     else if (approxEqual(f64, p.mass, 4180.0, 30.0) and approxEqual(f64, p.charge, -1.0 / 3.0, 0.01) and p.spin == 0.5 and p.has_color) return .BottomQuark
     else if (approxEqual(f64, p.mass, 1776.86, 0.12) and approxEqual(f64, p.charge, -1.0, 0.01) and p.spin == 0.5 and !p.has_color) return .Tau

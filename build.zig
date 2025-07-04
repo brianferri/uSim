@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const model = b.option([]const u8, "model", "The example model to use for particles/interactions") orelse "naive";
+    const model = b.option([]const u8, "model", "The example model to use for particles/interactions") orelse "standard";
     const stat = b.option(bool, "stat", "Use stat to keep track of usages (Linux)") orelse false;
     const initial_particle_count = b.option(usize, "ipc", "The number of particles to have the simulation start with") orelse 1;
 

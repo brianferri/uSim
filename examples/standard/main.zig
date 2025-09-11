@@ -187,15 +187,15 @@ const Type = enum {
 };
 
 /// Returns `true` if the emission consumed the interacting particles
-pub fn interact(self: *Particle, other: *Particle, emission_buffer: *std.ArrayList(Particle)) !bool {
-    if (try handleAnnihilation(self, other, emission_buffer)) return true;
-    if (try handlePairProduction(self, other, emission_buffer)) return true;
+pub fn interact(self: *Particle, other: *Particle, emission_buffer: *std.ArrayList(Particle), allocator: std.mem.Allocator) !bool {
+    if (try handleAnnihilation(self, other, emission_buffer, allocator)) return true;
+    if (try handlePairProduction(self, other, emission_buffer, allocator)) return true;
 
-    const consumed_self = try handleDecay(self, emission_buffer);
-    const consumed_other = try handleDecay(other, emission_buffer);
+    const consumed_self = try handleDecay(self, emission_buffer, allocator);
+    const consumed_other = try handleDecay(other, emission_buffer, allocator);
     if (consumed_self or consumed_other) return true;
 
-    _ = try handleScattering(self, other, emission_buffer);
+    _ = try handleScattering(self, other, emission_buffer, allocator);
     return false;
 }
 
@@ -210,7 +210,7 @@ pub fn interact(self: *Particle, other: *Particle, emission_buffer: *std.ArrayLi
 ///
 /// If these conditions are met, it simulates their annihilation into two photons,
 /// each carrying half of the total energy and opposite spins to conserve angular momentum.
-fn handleAnnihilation(a: *Particle, b: *Particle, emitted: *std.ArrayList(Particle)) !bool {
+fn handleAnnihilation(a: *Particle, b: *Particle, emitted: *std.ArrayList(Particle), allocator: std.mem.Allocator) !bool {
     if (std.math.approxEqRel(f64, a.charge, -b.charge, 1e-6) and
         std.math.approxEqRel(f64, a.mass, b.mass, 1e-6) and
         std.math.approxEqRel(f64, a.spin, -b.spin, 1e-6) and
@@ -219,7 +219,7 @@ fn handleAnnihilation(a: *Particle, b: *Particle, emitted: *std.ArrayList(Partic
     {
         const total_energy = a.energy + b.energy;
         const photon_energy = total_energy / 2.0;
-        const arr = try emitted.addManyAsArray(2);
+        const arr = try emitted.addManyAsArray(allocator, 2);
         arr[0] = .{ .charge = 0.0, .mass = 0.0, .energy = photon_energy, .spin = 1.0, .has_color = false };
         arr[1] = .{ .charge = 0.0, .mass = 0.0, .energy = photon_energy, .spin = -1.0, .has_color = false };
         return true;
@@ -227,17 +227,17 @@ fn handleAnnihilation(a: *Particle, b: *Particle, emitted: *std.ArrayList(Partic
     return false;
 }
 
-fn handleDecay(p: *Particle, emitted: *std.ArrayList(Particle)) !bool {
+fn handleDecay(p: *Particle, emitted: *std.ArrayList(Particle), allocator: std.mem.Allocator) !bool {
     var particle_type: Type = .fromStruct(p);
     const decay = particle_type.decay(p.energy) orelse return false;
 
     if (decay[2] != null) {
-        const arr = try emitted.addManyAsArray(3);
+        const arr = try emitted.addManyAsArray(allocator, 3);
         arr[0] = decay[0].?;
         arr[1] = decay[1].?;
         arr[2] = decay[2].?;
     } else {
-        const arr = try emitted.addManyAsArray(2);
+        const arr = try emitted.addManyAsArray(allocator, 2);
         arr[0] = decay[0].?;
         arr[1] = decay[1].?;
     }
@@ -253,15 +253,15 @@ fn handleDecay(p: *Particle, emitted: *std.ArrayList(Particle)) !bool {
 ///
 /// The emitted radiation carries away a portion of the total energy (10%), which is equally
 /// subtracted from both particles to conserve energy.
-fn handleScattering(a: *Particle, b: *Particle, emitted: *std.ArrayList(Particle)) !bool {
+fn handleScattering(a: *Particle, b: *Particle, emitted: *std.ArrayList(Particle), allocator: std.mem.Allocator) !bool {
     if ((a.energy + b.energy) < 1.0) return false;
     const emission_energy = (a.energy + b.energy) * 0.1;
 
     if (a.charge != 0.0 or b.charge != 0.0) {
-        try emitted.append(.{ .charge = 0.0, .mass = 0.0, .energy = emission_energy, .spin = 1.0, .has_color = false }); // Photon
+        try emitted.append(allocator, .{ .charge = 0.0, .mass = 0.0, .energy = emission_energy, .spin = 1.0, .has_color = false }); // Photon
     }
     if (a.has_color and b.has_color) {
-        try emitted.append(.{ .charge = 0.0, .mass = 0.0, .energy = emission_energy, .spin = 1.0, .has_color = true }); // Gluon
+        try emitted.append(allocator, .{ .charge = 0.0, .mass = 0.0, .energy = emission_energy, .spin = 1.0, .has_color = true }); // Gluon
     }
 
     const half_emission = emission_energy / 2.0;
@@ -280,7 +280,7 @@ fn handleScattering(a: *Particle, b: *Particle, emitted: *std.ArrayList(Particle
 /// - An electron-positron pair if energy > 1.022 MeV (2 × 0.51099895 MeV)
 ///
 /// The energy is equally divided between the two produced particles, and their spins are set to conserve angular momentum.
-fn handlePairProduction(a: *Particle, b: *Particle, emitted: *std.ArrayList(Particle)) !bool {
+fn handlePairProduction(a: *Particle, b: *Particle, emitted: *std.ArrayList(Particle), allocator: std.mem.Allocator) !bool {
     const particle_a = Type.fromStruct(a);
     const particle_b = Type.fromStruct(b);
     if (particle_a != .Photon and particle_b != .Photon) return false;
@@ -291,13 +291,13 @@ fn handlePairProduction(a: *Particle, b: *Particle, emitted: *std.ArrayList(Part
     const electron_mass = 0.51099895; // MeV
 
     if (total_energy >= 2.0 * muon_mass) {
-        const arr = try emitted.addManyAsArray(2);
+        const arr = try emitted.addManyAsArray(allocator, 2);
         const energy_per_particle = total_energy / 2.0;
         arr[0] = .{ .charge = -1.0, .mass = muon_mass, .energy = energy_per_particle, .spin = 0.5, .has_color = false }; // Muon
         arr[1] = .{ .charge = 1.0, .mass = muon_mass, .energy = energy_per_particle, .spin = -0.5, .has_color = false }; // Antimuon
 
     } else if (total_energy >= 2.0 * electron_mass) {
-        const arr = try emitted.addManyAsArray(2);
+        const arr = try emitted.addManyAsArray(allocator, 2);
         const energy_per_particle = total_energy / 2.0;
         arr[0] = .{ .charge = -1.0, .mass = electron_mass, .energy = energy_per_particle, .spin = 0.5, .has_color = false }; // Electron
         arr[1] = .{ .charge = 1.0, .mass = electron_mass, .energy = energy_per_particle, .spin = -0.5, .has_color = false }; // Positron

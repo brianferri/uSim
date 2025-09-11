@@ -61,12 +61,12 @@ fn collectInteractionTransactions(allocator: std.mem.Allocator, graph: *Particle
             .{ from_id, from.adjacency_set.count(), to_id, to.adjacency_set.count() },
         );
 
-        var emitted: std.ArrayList(Particle) = .init(allocator);
-        const consumed = try Particle.interact(&from.data, &to.data, &emitted);
+        var emitted: std.ArrayList(Particle) = .empty;
+        const consumed = try Particle.interact(&from.data, &to.data, &emitted, allocator);
 
         try transactions.put(from_id, .{
             .to = to_id,
-            .emitted = try emitted.toOwnedSlice(),
+            .emitted = try emitted.toOwnedSlice(allocator),
             .consumed = consumed,
         });
     }

@@ -11,7 +11,7 @@ def read_csv_data(filename: str):
                 data[col].append(int(row[i]) if col != "iter_time" else float(row[i]))
     return data, columns
 
-def plot_data(data: dict[str, list], x_col: list[str], y_cols: list[str], colors: list[str]):
+def plot_data(data: dict[str, list], x_col: str, y_cols: list[str], colors: list[str]):
     fig, ax1 = plt.subplots()
     ax1.set_xlabel(x_col)
     ax1.grid(True, linestyle='--', alpha=0.6)

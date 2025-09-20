@@ -392,7 +392,9 @@ pub fn print(
     try file.flush();
 
     var gfile_buffer: [1024]u8 = undefined;
-    var gfile = try std.fs.cwd().createFile(try std.fmt.allocPrint(allocator, "zig-out/graph/iter_{d}.gv", .{iter}), .{});
+    const gfile_name = try std.fmt.allocPrint(allocator, "zig-out/graph/iter_{d}.gv", .{iter});
+    defer allocator.free(gfile_name);
+    var gfile = try std.fs.cwd().createFile(gfile_name, .{});
     var gfile_writer = gfile.writer(&gfile_buffer);
     const gfile_interface = &gfile_writer.interface;
     defer gfile.close();

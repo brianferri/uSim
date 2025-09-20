@@ -114,8 +114,7 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !voi
 }
 
 fn logIteration(
-    allocator: std.mem.Allocator,
-    file: *std.fs.File,
+    file: *std.Io.Writer,
     graph: *ParticleGraph,
     iter: usize,
     iter_time: f64,
@@ -130,14 +129,16 @@ fn logIteration(
 
     if (comptime useStat) {
         const memory = try stat(&buf);
-        try file.writeAll(try std.fmt.allocPrint(allocator, "{d},{d},{d},{d},{d}\n", .{
+        try file.print("{d},{d},{d},{d},{d}\n", .{
             iter, graph.vertices.count(), edges, iter_time, memory.rss,
-        }));
+        });
     } else {
-        try file.writeAll(try std.fmt.allocPrint(allocator, "{d},{d},{d},{d}\n", .{
+        try file.print("{d},{d},{d},{d}\n", .{
             iter, graph.vertices.count(), edges, iter_time,
-        }));
+        });
     }
+
+    try file.flush();
 }
 
 pub fn main() !void {
@@ -149,13 +150,21 @@ pub fn main() !void {
     std.debug.print("Initialized in: {d:.3}ms\n", .{@as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms});
     defer graph.deinit();
 
+    var file_buffer: [1024]u8 = undefined;
     var file = try std.fs.cwd().createFile("zig-out/out.csv", .{});
+    var file_writer = file.writer(&file_buffer);
+    const file_interface = &file_writer.interface;
     defer file.close();
-    _ = try file.write("iter,vertices,num_edges,iter_time,mem\n");
 
+    try file_interface.print("iter,vertices,num_edges,iter_time{s}\n", .{if (comptime useStat) ",mem" else ""});
+
+    var particle_stats_file_buffer: [1024]u8 = undefined;
     var particle_stats_file = try std.fs.cwd().createFile("zig-out/parts.csv", .{});
+    var particle_stats_file_writer = particle_stats_file.writer(&particle_stats_file_buffer);
+    const particle_stats_file_interface = &particle_stats_file_writer.interface;
     defer particle_stats_file.close();
-    try Particle.print(&graph, allocator, &particle_stats_file, 0);
+
+    try Particle.print(&graph, allocator, particle_stats_file_interface, 0);
 
     var graph_state = graph;
     var i: usize = 1;
@@ -165,12 +174,12 @@ pub fn main() !void {
         var timer = try time.Timer.start();
         try processInteractions(allocator, &graph);
         const iter_time = @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms;
-        try logIteration(allocator, &file, &graph, i, iter_time);
+        try logIteration(file_interface, &graph, i, iter_time);
 
         std.debug.print("\x1B[2J\x1B[H", .{});
         std.debug.print("iter: {d} | time: {d}\n", .{ i, iter_time });
         if (std.meta.eql(graph, graph_state) and i != 0) break; //? Reached stable state
-        try Particle.print(&graph, allocator, &particle_stats_file, i);
+        try Particle.print(&graph, allocator, particle_stats_file_interface, i);
 
         if (graph.vertices.count() == 0) break;
         graph_state = graph;

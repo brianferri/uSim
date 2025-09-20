@@ -333,7 +333,7 @@ pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_in
 pub fn print(
     graph: *Graph(usize, Particle),
     allocator: std.mem.Allocator,
-    file: *std.fs.File,
+    file: *std.Io.Writer,
     iter: usize,
 ) !void {
     const num_vertices: usize = graph.vertices.count();
@@ -371,29 +371,32 @@ pub fn print(
     std.debug.print("-----------------------------\n\n", .{});
 
     if (iter == 0) {
-        try file.writeAll("iter,vertices,num_edges,total_mass,total_charge,total_energy");
-        inline for (@typeInfo(Type).@"enum".fields) |field|
-            try file.writeAll(try std.fmt.allocPrint(allocator, ",{s}", .{field.name}));
-        try file.writeAll("\n");
+        try file.print("iter,vertices,num_edges,total_mass,total_charge,total_energy", .{});
+        inline for (@typeInfo(Type).@"enum".fields) |field| {
+            try file.print(",{s}", .{field.name});
+        }
+        try file.print("\n", .{});
     }
 
-    try file.writeAll(try std.fmt.allocPrint(allocator, "{d},{d},{d},{d:.3},{d:.3},{d:.3}", .{
+    try file.print("{d},{d},{d},{d:.3},{d:.3},{d:.3}", .{
         iter,
         num_vertices,
         total_edges,
         total_mass,
         total_charge,
         total_energy,
-    }));
+    });
 
-    inline for (counts) |c|
-        try file.writeAll(try std.fmt.allocPrint(allocator, ",{d}", .{c}));
+    inline for (counts) |c| try file.print(",{d}", .{c});
+    try file.print("\n", .{});
+    try file.flush();
 
-    try file.writeAll("\n");
-
+    var gfile_buffer: [1024]u8 = undefined;
     var gfile = try std.fs.cwd().createFile(try std.fmt.allocPrint(allocator, "zig-out/graph/iter_{d}.gv", .{iter}), .{});
+    var gfile_writer = gfile.writer(&gfile_buffer);
+    const gfile_interface = &gfile_writer.interface;
     defer gfile.close();
-    try gfile.writeAll("digraph G {\n");
+    try gfile_interface.print("digraph G {{\n", .{});
 
     var it = graph.vertices.iterator();
     while (it.next()) |entry| {
@@ -404,13 +407,15 @@ pub fn print(
             p.mass,
             p.charge,
         });
-        try gfile.writeAll(try std.fmt.allocPrint(allocator, "  {d} [label=\"{s}\"];\n", .{ vertex_id, label }));
+        defer allocator.free(label);
+        try gfile_interface.print("  {d} [label=\"{s}\"];\n", .{ vertex_id, label });
 
         var neighbors = entry.value_ptr.*.adjacency_set.iterator();
         while (neighbors.next()) |dst| {
-            try gfile.writeAll(try std.fmt.allocPrint(allocator, "  {d} -> {d};\n", .{ vertex_id, dst.key_ptr.* }));
+            try gfile_interface.print("  {d} -> {d};\n", .{ vertex_id, dst.key_ptr.* });
         }
     }
 
-    try gfile.writeAll("}\n");
+    try gfile_interface.print("}}\n", .{});
+    try gfile_interface.flush();
 }

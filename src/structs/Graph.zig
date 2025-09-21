@@ -88,6 +88,9 @@ pub fn Graph(comptime K: type, comptime T: type) type {
             return if (self.getVertex(index)) |v| v.*.data else null;
         }
 
+        /// If there is an `Entry` with a matching key, it is deleted from
+        /// the hash map, and this function returns true.  Otherwise this
+        /// function returns false.
         pub fn removeVertex(self: *Self, index: K) bool {
             if (self.getVertex(index)) |vertex| {
                 var vertex_iterator = self.vertices.iterator();

@@ -23,18 +23,20 @@ const InteractionTransaction = std.AutoHashMap(usize, struct {
 /// and updates adjacent and incident vertices to reference the new node.
 fn connectClonedEdges(graph: *ParticleGraph, new_id: usize, source: *ParticleGraph.Node) !void {
     var new = graph.getVertex(new_id) orelse unreachable;
-    new.adjacency_set = try source.adjacency_set.clone();
-    new.incidency_set = try source.incidency_set.clone();
 
     var adj_iter = source.adjacency_set.iterator();
     while (adj_iter.next()) |entry| {
-        const adj_v = graph.getVertex(entry.key_ptr.*) orelse continue;
+        const adj_v_id = entry.key_ptr.*;
+        try new.addAdjEdge(adj_v_id);
+        const adj_v = graph.getVertex(adj_v_id) orelse continue;
         try adj_v.addIncEdge(new_id);
     }
 
     var inc_iter = source.incidency_set.iterator();
     while (inc_iter.next()) |entry| {
-        const inc_v = graph.getVertex(entry.key_ptr.*) orelse continue;
+        const inc_v_id = entry.key_ptr.*;
+        try new.addIncEdge(inc_v_id);
+        const inc_v = graph.getVertex(inc_v_id) orelse continue;
         try inc_v.addAdjEdge(new_id);
     }
 }
@@ -76,7 +78,7 @@ fn collectInteractionTransactions(allocator: std.mem.Allocator, graph: *Particle
 }
 
 /// Applies the provided list of interaction transactions to the particle graph.
-fn applyTransactions(graph: *ParticleGraph, transactions: InteractionTransaction) !void {
+fn applyTransactions(allocator: std.mem.Allocator, graph: *ParticleGraph, transactions: InteractionTransaction) !void {
     var apply_index: usize = 0;
     var tx_iter = transactions.iterator();
     while (tx_iter.next()) |entry| : (apply_index += 1) {
@@ -99,6 +101,8 @@ fn applyTransactions(graph: *ParticleGraph, transactions: InteractionTransaction
             try connectClonedEdges(graph, new_id, source_to);
         }
 
+        if (tx.emitted.len > 0) allocator.free(tx.emitted);
+
         if (tx.consumed) {
             _ = graph.removeVertex(from);
             _ = graph.removeVertex(to);
@@ -110,7 +114,7 @@ fn applyTransactions(graph: *ParticleGraph, transactions: InteractionTransaction
 fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !void {
     var transactions = try collectInteractionTransactions(allocator, graph);
     defer transactions.deinit();
-    try applyTransactions(graph, transactions);
+    try applyTransactions(allocator, graph, transactions);
 }
 
 fn logIteration(

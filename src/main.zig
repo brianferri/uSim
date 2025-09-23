@@ -11,110 +11,85 @@ const ipc = options.initial_particle_count;
 const Graph = uSim.Graph;
 const ParticleGraph = Graph(usize, Particle);
 
-/// Key is the `from`
-const InteractionTransaction = std.AutoHashMap(usize, struct {
-    to: usize,
+const EmissionTx = struct {
+    parents: [2]usize,
     emitted: []Particle,
-    /// If the particles that interacted were consumed in the interaction and are flagged for removal from the graph
     consumed: bool,
-});
+};
 
-/// Clones adjacency and incidency sets from a source node to a new node,
-/// and updates adjacent and incident vertices to reference the new node.
-fn connectClonedEdges(graph: *ParticleGraph, new_id: usize, source: *ParticleGraph.Node) !void {
-    var new = graph.getVertex(new_id) orelse unreachable;
-
-    var adj_iter = source.adjacency_set.iterator();
-    while (adj_iter.next()) |entry| {
-        const adj_v_id = entry.key_ptr.*;
-        try new.addAdjEdge(adj_v_id);
-        const adj_v = graph.getVertex(adj_v_id) orelse continue;
-        try adj_v.addIncEdge(new_id);
-    }
-
-    var inc_iter = source.incidency_set.iterator();
-    while (inc_iter.next()) |entry| {
-        const inc_v_id = entry.key_ptr.*;
-        try new.addIncEdge(inc_v_id);
-        const inc_v = graph.getVertex(inc_v_id) orelse continue;
-        try inc_v.addAdjEdge(new_id);
-    }
-}
-
-/// Gathers a map of particle interaction transactions by evaluating all eligible vertex pairs.
-fn collectInteractionTransactions(allocator: std.mem.Allocator, graph: *ParticleGraph) !InteractionTransaction {
-    var transactions: InteractionTransaction = .init(allocator);
+fn collectInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !std.ArrayList(EmissionTx) {
+    var txs: std.ArrayList(EmissionTx) = .empty;
 
     var iter = graph.vertices.iterator();
     while (iter.next()) |entry| {
-        const from_id = entry.key_ptr.*;
-        if (transactions.contains(from_id)) continue;
+        const i = entry.key_ptr.*;
+        const node_i = entry.value_ptr.*;
 
-        const from = entry.value_ptr.*;
-        var to_it = from.adjacency_set.keyIterator();
-        const to_id = (to_it.next() orelse continue).*;
+        var adj_iter = node_i.adjacency_set.iterator();
+        while (adj_iter.next()) |adj_entry| {
+            const j = adj_entry.key_ptr.*;
+            if (i >= j) continue;
 
-        if (from_id == to_id or transactions.contains(to_id)) continue;
+            const node_j = graph.getVertex(j) orelse continue;
 
-        const to = graph.getVertex(to_id) orelse continue;
+            var emitted: std.ArrayList(Particle) = .empty;
+            const consumed = try Particle.interact(&node_i.data, &node_j.data, &emitted, allocator);
 
-        std.debug.print(
-            "\rInteracting: v1 = {d} (edges: {d}), v2 = {d} (edges: {d})\x1B[0K",
-            .{ from_id, from.adjacency_set.count(), to_id, to.adjacency_set.count() },
-        );
-
-        var emitted: std.ArrayList(Particle) = .empty;
-        const consumed = try Particle.interact(&from.data, &to.data, &emitted, allocator);
-
-        try transactions.put(from_id, .{
-            .to = to_id,
-            .emitted = try emitted.toOwnedSlice(allocator),
-            .consumed = consumed,
-        });
+            try txs.append(allocator, .{
+                .parents = .{ i, j },
+                .emitted = try emitted.toOwnedSlice(allocator),
+                .consumed = consumed,
+            });
+        }
     }
-
-    std.debug.print("\nTransactions to apply: {d}\n", .{transactions.count()});
-    return transactions;
+    return txs;
 }
 
-/// Applies the provided list of interaction transactions to the particle graph.
-fn applyTransactions(allocator: std.mem.Allocator, graph: *ParticleGraph, transactions: InteractionTransaction) !void {
-    var apply_index: usize = 0;
-    var tx_iter = transactions.iterator();
-    while (tx_iter.next()) |entry| : (apply_index += 1) {
-        const tx = entry.value_ptr.*;
-        const from = entry.key_ptr.*;
-        const to = tx.to;
+fn applyTransactions(allocator: std.mem.Allocator, graph: *ParticleGraph, transactions: std.ArrayList(EmissionTx)) !void {
+    var max_key: usize = 0;
+    var it = graph.vertices.iterator();
+    while (it.next()) |entry| {
+        if (entry.key_ptr.* > max_key)
+            max_key = entry.key_ptr.*;
+    }
+    var next_key = max_key + 1;
 
-        std.debug.print(
-            "\rApplying Tx {d}: from = {d}, to = {d}, emitted = {d}, consumed = {any}\x1B[0K",
-            .{ apply_index, from, to, tx.emitted.len, tx.consumed },
-        );
+    for (transactions.items) |transaction| {
+        defer allocator.free(transaction.emitted);
+        const parents = transaction.parents;
 
-        const source_from = graph.getVertex(from) orelse return;
-        const source_to = graph.getVertex(to) orelse return;
-        const vertex_count = graph.vertices.count();
-        for (tx.emitted, 0..) |p, i| {
-            const new_id = vertex_count + i;
-            try graph.putVertex(new_id, p);
-            try connectClonedEdges(graph, new_id, source_from);
-            try connectClonedEdges(graph, new_id, source_to);
+        for (transaction.emitted) |particle| {
+            const new_id = next_key;
+            next_key += 1;
+            try graph.putVertex(new_id, particle);
+
+            for (parents) |particle_id| {
+                if (graph.getVertex(particle_id)) |_| {
+                    _ = try graph.addEdge(particle_id, new_id);
+                    _ = try graph.addEdge(new_id, particle_id);
+                }
+            }
         }
 
-        if (tx.emitted.len > 0) allocator.free(tx.emitted);
-
-        if (tx.consumed) {
-            _ = graph.removeVertex(from);
-            _ = graph.removeVertex(to);
+        if (transaction.consumed) {
+            _ = graph.removeVertex(parents[0]);
+            _ = graph.removeVertex(parents[1]);
         }
     }
 }
 
-/// Processes all particle interactions in the graph, applies emitted particles, and removes consumed particles.
+fn applyRemovals(graph: *ParticleGraph, to_remove: *std.AutoHashMap(usize, void)) void {
+    var it = to_remove.iterator();
+    while (it.next()) |removed_entry| {
+        const idx = removed_entry.key_ptr.*;
+        _ = graph.removeVertex(idx);
+    }
+}
+
 fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !void {
-    var transactions = try collectInteractionTransactions(allocator, graph);
-    defer transactions.deinit();
-    try applyTransactions(allocator, graph, transactions);
+    var txs = try collectInteractions(allocator, graph);
+    defer txs.deinit(allocator);
+    try applyTransactions(allocator, graph, txs);
 }
 
 fn logIteration(
@@ -131,16 +106,14 @@ fn logIteration(
         edges += v.*.adjacency_set.count();
     }
 
-    if (comptime useStat) {
+    if (useStat) {
         const memory = try stat(&buf);
         try file.print("{d},{d},{d},{d},{d}\n", .{
             iter, graph.vertices.count(), edges, iter_time, memory.rss,
         });
-    } else {
-        try file.print("{d},{d},{d},{d}\n", .{
-            iter, graph.vertices.count(), edges, iter_time,
-        });
-    }
+    } else try file.print("{d},{d},{d},{d}\n", .{
+        iter, graph.vertices.count(), edges, iter_time,
+    });
 
     try file.flush();
 }
@@ -160,7 +133,7 @@ pub fn main() !void {
     const file_interface = &file_writer.interface;
     defer file.close();
 
-    try file_interface.print("iter,vertices,num_edges,iter_time{s}\n", .{if (comptime useStat) ",mem" else ""});
+    try file_interface.print("iter,vertices,num_edges,iter_time{s}\n", .{if (useStat) ",mem" else ""});
 
     var particle_stats_file_buffer: [1024]u8 = undefined;
     var particle_stats_file = try std.fs.cwd().createFile("zig-out/parts.csv", .{});
@@ -170,23 +143,25 @@ pub fn main() !void {
 
     try Particle.print(&graph, allocator, particle_stats_file_interface, 0);
 
-    var graph_state = graph;
+    var prev_graph_state = graph.vertices.count();
     var i: usize = 1;
     while (true) : (i += 1) {
         std.debug.print("Calculating iter: {d}...\n", .{i});
 
         var timer = try time.Timer.start();
         try processInteractions(allocator, &graph);
+        if (graph.vertices.count() == 0) break;
+
+        const curr_graph_state = graph.vertices.count();
         const iter_time = @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms;
         try logIteration(file_interface, &graph, i, iter_time);
 
         std.debug.print("\x1B[2J\x1B[H", .{});
         std.debug.print("iter: {d} | time: {d}\n", .{ i, iter_time });
-        if (std.meta.eql(graph, graph_state) and i != 0) break; //? Reached stable state
-        try Particle.print(&graph, allocator, particle_stats_file_interface, i);
+        if (prev_graph_state == curr_graph_state and i != 0) break; //? Reached stable state
+        prev_graph_state = curr_graph_state;
 
-        if (graph.vertices.count() == 0) break;
-        graph_state = graph;
+        try Particle.print(&graph, allocator, particle_stats_file_interface, i);
     }
 
     std.debug.print("Total time: {d:.3}ms\n", .{@as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms});

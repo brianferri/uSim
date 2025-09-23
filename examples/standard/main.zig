@@ -320,9 +320,9 @@ pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_in
 
     if (graph.vertices.count() >= 2) {
         for (0..(graph.vertices.count() - 1)) |i| {
-            for (0..(graph.vertices.count() - 1)) |j| {
+            for (0..3) |j| {
                 if (i == j) continue;
-                try graph.addEdge(i, j);
+                try graph.addEdge(i, random.intRangeAtMost(u64, 0, particle_count));
             }
         }
     }

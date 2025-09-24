@@ -13,8 +13,8 @@ const ParticleGraph = Graph(usize, Particle);
 
 const EmissionTx = struct {
     parents: [2]usize,
+    consumed: [2]bool,
     emitted: []Particle,
-    consumed: bool,
 };
 
 fn collectInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !std.ArrayList(EmissionTx) {
@@ -71,10 +71,8 @@ fn applyTransactions(allocator: std.mem.Allocator, graph: *ParticleGraph, transa
             }
         }
 
-        if (transaction.consumed) {
-            _ = graph.removeVertex(parents[0]);
-            _ = graph.removeVertex(parents[1]);
-        }
+        if (transaction.consumed[0]) _ = graph.removeVertex(parents[0]);
+        if (transaction.consumed[1]) _ = graph.removeVertex(parents[1]);
     }
 }
 
@@ -102,16 +100,12 @@ fn logIteration(
     var edges: usize = 0;
 
     var vertices = graph.vertices.valueIterator();
-    while (vertices.next()) |v| {
+    while (vertices.next()) |v|
         edges += v.*.adjacency_set.count();
-    }
 
-    if (useStat) {
-        const memory = try stat(&buf);
-        try file.print("{d},{d},{d},{d},{d}\n", .{
-            iter, graph.vertices.count(), edges, iter_time, memory.rss,
-        });
-    } else try file.print("{d},{d},{d},{d}\n", .{
+    if (useStat) try file.print("{d},{d},{d},{d},{d}\n", .{
+        iter, graph.vertices.count(), edges, iter_time, try stat(&buf).rss,
+    }) else try file.print("{d},{d},{d},{d}\n", .{
         iter, graph.vertices.count(), edges, iter_time,
     });
 
@@ -124,8 +118,11 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     var outer_timer = try time.Timer.start();
     var graph = try Particle.initializeGraph(allocator, ipc);
-    std.debug.print("Initialized in: {d:.3}ms\n", .{@as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms});
     defer graph.deinit();
+    std.debug.print(
+        "Initialized in: {d:.3}ms\n",
+        .{@as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms},
+    );
 
     var file_buffer: [1024]u8 = undefined;
     var file = try std.fs.cwd().createFile("zig-out/out.csv", .{});
@@ -164,5 +161,8 @@ pub fn main() !void {
         try Particle.print(&graph, allocator, particle_stats_file_interface, i);
     }
 
-    std.debug.print("Total time: {d:.3}ms\n", .{@as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms});
+    std.debug.print(
+        "Total time: {d:.3}ms\n",
+        .{@as(f64, @floatFromInt(outer_timer.read())) / time.ns_per_ms},
+    );
 }

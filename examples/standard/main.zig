@@ -187,16 +187,15 @@ const Type = enum {
 };
 
 /// Returns `true` if the emission consumed the interacting particles
-pub fn interact(self: *Particle, other: *Particle, emission_buffer: *std.ArrayList(Particle), allocator: std.mem.Allocator) !bool {
-    if (try handleAnnihilation(self, other, emission_buffer, allocator)) return true;
-    if (try handlePairProduction(self, other, emission_buffer, allocator)) return true;
+pub fn interact(self: *Particle, other: *Particle, emission_buffer: *std.ArrayList(Particle), allocator: std.mem.Allocator) !struct { bool, bool } {
+    if (try handleScattering(self, other, emission_buffer, allocator)) return .{ false, false };
+    if (try handleAnnihilation(self, other, emission_buffer, allocator)) return .{ true, true };
+    if (try handlePairProduction(self, other, emission_buffer, allocator)) return .{ true, true };
 
-    const consumed_self = try handleDecay(self, emission_buffer, allocator);
-    const consumed_other = try handleDecay(other, emission_buffer, allocator);
-    if (consumed_self or consumed_other) return true;
-
-    _ = try handleScattering(self, other, emission_buffer, allocator);
-    return false;
+    var consumed_particles: struct { bool, bool } = .{ false, false };
+    consumed_particles[0] = try handleDecay(self, emission_buffer, allocator);
+    consumed_particles[1] = try handleDecay(other, emission_buffer, allocator);
+    return consumed_particles;
 }
 
 /// Simulates the annihilation of a particle-antiparticle pair into photons.

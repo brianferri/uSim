@@ -140,7 +140,7 @@ pub fn main() !void {
 
     try Particle.print(&graph, allocator, particle_stats_file_interface, 0);
 
-    var prev_graph_state = graph.vertices.count();
+    var prev_graph_state = graph;
     var i: usize = 1;
     while (true) : (i += 1) {
         std.debug.print("Calculating iter: {d}...\n", .{i});
@@ -149,14 +149,13 @@ pub fn main() !void {
         try processInteractions(allocator, &graph);
         if (graph.vertices.count() == 0) break;
 
-        const curr_graph_state = graph.vertices.count();
         const iter_time = @as(f64, @floatFromInt(timer.read())) / time.ns_per_ms;
         try logIteration(file_interface, &graph, i, iter_time);
 
         std.debug.print("\x1B[2J\x1B[H", .{});
         std.debug.print("iter: {d} | time: {d}\n", .{ i, iter_time });
-        if (prev_graph_state == curr_graph_state and i != 0) break; //? Reached stable state
-        prev_graph_state = curr_graph_state;
+        if (std.meta.eql(prev_graph_state, graph) and i != 0) break; //? Reached stable state
+        prev_graph_state = graph;
 
         try Particle.print(&graph, allocator, particle_stats_file_interface, i);
     }

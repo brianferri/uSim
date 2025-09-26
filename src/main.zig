@@ -76,14 +76,6 @@ fn applyTransactions(allocator: std.mem.Allocator, graph: *ParticleGraph, transa
     }
 }
 
-fn applyRemovals(graph: *ParticleGraph, to_remove: *std.AutoHashMap(usize, void)) void {
-    var it = to_remove.iterator();
-    while (it.next()) |removed_entry| {
-        const idx = removed_entry.key_ptr.*;
-        _ = graph.removeVertex(idx);
-    }
-}
-
 fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !void {
     var txs = try collectInteractions(allocator, graph);
     defer txs.deinit(allocator);

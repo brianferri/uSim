@@ -12,40 +12,8 @@ const Graph = uSim.Graph;
 const ParticleGraph = Graph(usize, Particle);
 
 fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !void {
-    var transactions: std.ArrayList(struct {
-        parents: [2]usize,
-        consumed: [2]bool,
-        emitted: []Particle,
-    }) = .empty;
-    defer transactions.deinit(allocator);
-
-    var particle_status: std.AutoArrayHashMap(usize, void) = .init(allocator);
+    var particle_status: std.AutoArrayHashMap(usize, bool) = .init(allocator);
     defer particle_status.deinit();
-
-    var iter = graph.vertices.iterator();
-    while (iter.next()) |entry| {
-        const p1_key = entry.key_ptr.*;
-        if (particle_status.get(p1_key)) |_| continue;
-        try particle_status.put(p1_key, {});
-        const p1_value = entry.value_ptr.*;
-
-        var adj_iter = p1_value.adjacency_set.iterator();
-        while (adj_iter.next()) |adj_entry| {
-            const p2_key = adj_entry.key_ptr.*;
-            if (particle_status.get(p2_key)) |_| continue;
-            try particle_status.put(p2_key, {});
-            const p2_value = graph.getVertex(p2_key) orelse continue;
-
-            var emission_buffer: std.ArrayList(Particle) = .empty;
-            const consumed = try Particle.interact(&p1_value.data, &p2_value.data, &emission_buffer, allocator);
-
-            try transactions.append(allocator, .{
-                .parents = .{ p1_key, p2_key },
-                .emitted = try emission_buffer.toOwnedSlice(allocator),
-                .consumed = consumed,
-            });
-        }
-    }
 
     // TODO: find a better way to track new IDs
     var max_key: usize = 0;
@@ -55,18 +23,41 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !voi
             max_key = entry.key_ptr.*;
     }
     var next_key = max_key + 1;
-    for (transactions.items) |transaction| {
-        defer allocator.free(transaction.emitted);
 
-        for (transaction.emitted) |particle| {
-            const new_id = next_key;
-            next_key += 1;
-            try graph.putVertex(new_id, particle);
-            for (transaction.parents, 0..) |particle_id, i| {
-                _ = try graph.addEdge(particle_id, new_id);
-                if (transaction.consumed[i]) _ = graph.removeVertex(particle_id);
+    var iter = graph.vertices.iterator();
+    while (iter.next()) |entry| {
+        const p1_key = entry.key_ptr.*;
+        if ((try particle_status.getOrPutValue(p1_key, false)).found_existing) continue;
+        const p1_value = entry.value_ptr.*;
+
+        var adj_iter = p1_value.adjacency_set.iterator();
+        while (adj_iter.next()) |adj_entry| {
+            const p2_key = adj_entry.key_ptr.*;
+            if ((try particle_status.getOrPutValue(p2_key, false)).found_existing) continue;
+            const p2_value = graph.getVertex(p2_key) orelse continue;
+
+            var emission_buffer: std.ArrayList(Particle) = .empty;
+            defer emission_buffer.deinit(allocator);
+
+            const consumed = try Particle.interact(&p1_value.data, &p2_value.data, &emission_buffer, allocator);
+            try particle_status.put(p1_key, consumed[0]);
+            try particle_status.put(p2_key, consumed[1]);
+
+            for (emission_buffer.items) |particle| {
+                defer next_key += 1;
+                try graph.putVertex(next_key, particle);
+                try graph.addEdge(p1_key, next_key);
+                try graph.addEdge(p2_key, next_key);
+                try graph.addEdge(next_key, p1_key);
+                try graph.addEdge(next_key, p2_key);
+                try particle_status.put(next_key, false);
             }
         }
+    }
+
+    var status_iter = particle_status.iterator();
+    while (status_iter.next()) |status| {
+        if (status.value_ptr.*) _ = graph.removeVertex(status.key_ptr.*);
     }
 }
 

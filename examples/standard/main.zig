@@ -121,7 +121,7 @@ const Type = enum {
 
         if (approxEqual(f64, particle.mass, 0.51099895, 0.00000015)) {
             // zig fmt: off
-            if (approxEqual(f64, particle.charge, -1.0, 0.01) and particle.spin == 0.5) return .Electron 
+            if (approxEqual(f64, particle.charge, -1.0, 0.01) and particle.spin == 0.5) return .Electron
             else if (approxEqual(f64, particle.charge, 1.0, 0.01) and particle.spin == -0.5) return .Positron;
             // zig fmt: on
         }

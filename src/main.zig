@@ -11,41 +11,43 @@ const ipc = options.initial_particle_count;
 const Graph = uSim.Graph;
 const ParticleGraph = Graph(usize, Particle);
 
-const EmissionTx = struct {
-    parents: [2]usize,
-    consumed: [2]bool,
-    emitted: []Particle,
-};
+fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !void {
+    var transactions: std.ArrayList(struct {
+        parents: [2]usize,
+        consumed: [2]bool,
+        emitted: []Particle,
+    }) = .empty;
+    defer transactions.deinit(allocator);
 
-fn collectInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !std.ArrayList(EmissionTx) {
-    var txs: std.ArrayList(EmissionTx) = .empty;
+    var particle_status: std.AutoArrayHashMap(usize, void) = .init(allocator);
+    defer particle_status.deinit();
 
     var iter = graph.vertices.iterator();
     while (iter.next()) |entry| {
-        const i = entry.key_ptr.*;
-        const node_i = entry.value_ptr.*;
+        const p1_key = entry.key_ptr.*;
+        if (particle_status.get(p1_key)) |_| continue;
+        try particle_status.put(p1_key, {});
+        const p1_value = entry.value_ptr.*;
 
-        var adj_iter = node_i.adjacency_set.iterator();
+        var adj_iter = p1_value.adjacency_set.iterator();
         while (adj_iter.next()) |adj_entry| {
-            const j = adj_entry.key_ptr.*;
-            if (i >= j) continue;
+            const p2_key = adj_entry.key_ptr.*;
+            if (particle_status.get(p2_key)) |_| continue;
+            try particle_status.put(p2_key, {});
+            const p2_value = graph.getVertex(p2_key) orelse continue;
 
-            const node_j = graph.getVertex(j) orelse continue;
+            var emission_buffer: std.ArrayList(Particle) = .empty;
+            const consumed = try Particle.interact(&p1_value.data, &p2_value.data, &emission_buffer, allocator);
 
-            var emitted: std.ArrayList(Particle) = .empty;
-            const consumed = try Particle.interact(&node_i.data, &node_j.data, &emitted, allocator);
-
-            try txs.append(allocator, .{
-                .parents = .{ i, j },
-                .emitted = try emitted.toOwnedSlice(allocator),
+            try transactions.append(allocator, .{
+                .parents = .{ p1_key, p2_key },
+                .emitted = try emission_buffer.toOwnedSlice(allocator),
                 .consumed = consumed,
             });
         }
     }
-    return txs;
-}
 
-fn applyTransactions(allocator: std.mem.Allocator, graph: *ParticleGraph, transactions: std.ArrayList(EmissionTx)) !void {
+    // TODO: find a better way to track new IDs
     var max_key: usize = 0;
     var it = graph.vertices.iterator();
     while (it.next()) |entry| {
@@ -53,33 +55,19 @@ fn applyTransactions(allocator: std.mem.Allocator, graph: *ParticleGraph, transa
             max_key = entry.key_ptr.*;
     }
     var next_key = max_key + 1;
-
     for (transactions.items) |transaction| {
         defer allocator.free(transaction.emitted);
-        const parents = transaction.parents;
 
         for (transaction.emitted) |particle| {
             const new_id = next_key;
             next_key += 1;
             try graph.putVertex(new_id, particle);
-
-            for (parents) |particle_id| {
-                if (graph.getVertex(particle_id)) |_| {
-                    _ = try graph.addEdge(particle_id, new_id);
-                    _ = try graph.addEdge(new_id, particle_id);
-                }
+            for (transaction.parents, 0..) |particle_id, i| {
+                _ = try graph.addEdge(particle_id, new_id);
+                if (transaction.consumed[i]) _ = graph.removeVertex(particle_id);
             }
         }
-
-        if (transaction.consumed[0]) _ = graph.removeVertex(parents[0]);
-        if (transaction.consumed[1]) _ = graph.removeVertex(parents[1]);
     }
-}
-
-fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !void {
-    var txs = try collectInteractions(allocator, graph);
-    defer txs.deinit(allocator);
-    try applyTransactions(allocator, graph, txs);
 }
 
 fn logIteration(
@@ -96,7 +84,7 @@ fn logIteration(
         edges += v.*.adjacency_set.count();
 
     if (useStat) try file.print("{d},{d},{d},{d},{d}\n", .{
-        iter, graph.vertices.count(), edges, iter_time, try stat(&buf).rss,
+        iter, graph.vertices.count(), edges, iter_time, (try stat(&buf)).rss,
     }) else try file.print("{d},{d},{d},{d}\n", .{
         iter, graph.vertices.count(), edges, iter_time,
     });

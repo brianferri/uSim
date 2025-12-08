@@ -8,21 +8,11 @@ const time = std.time;
 const useStat = options.stat;
 const ipc = options.initial_particle_count;
 
-const Graph = uSim.Graph;
-const ParticleGraph = Graph(usize, Particle);
+const ParticleGraph = Particle.Graph;
 
 fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !void {
     var particle_status: std.AutoArrayHashMap(usize, bool) = .init(allocator);
     defer particle_status.deinit();
-
-    // TODO: find a better way to track new IDs
-    var max_key: usize = 0;
-    var it = graph.vertices.iterator();
-    while (it.next()) |entry| {
-        if (entry.key_ptr.* > max_key)
-            max_key = entry.key_ptr.*;
-    }
-    var next_key = max_key + 1;
 
     var iter = graph.vertices.iterator();
     while (iter.next()) |entry| {
@@ -44,8 +34,7 @@ fn processInteractions(allocator: std.mem.Allocator, graph: *ParticleGraph) !voi
             try particle_status.put(p2_key, consumed[1]);
 
             for (emission_buffer.items) |particle| {
-                defer next_key += 1;
-                try graph.putVertex(next_key, particle);
+                const next_key = try graph.putVertexAuto(particle);
                 try graph.addEdge(p1_key, next_key);
                 try graph.addEdge(p2_key, next_key);
                 try graph.addEdge(next_key, p1_key);

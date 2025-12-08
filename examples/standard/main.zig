@@ -1,8 +1,6 @@
 const std = @import("std");
 const uSim = @import("usim");
 
-const Graph = uSim.Graph;
-
 const Particle = @This();
 
 const approxEqual = std.math.approxEqRel;
@@ -306,15 +304,26 @@ fn handlePairProduction(a: *Particle, b: *Particle, emitted: *std.ArrayList(Part
     return true;
 }
 
-pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_int) !Graph(usize, Particle) {
-    var graph: Graph(usize, Particle) = .init(allocator);
-    for (0..particle_count) |i| {
+
+fn nextUsize(curr: usize) usize {
+    return curr + 1;
+}
+
+fn lessThan(a: usize, b: usize) std.math.Order {
+    return std.math.order(a, b);
+}
+
+pub const Graph = uSim.Graph(usize, Particle, nextUsize, lessThan);
+
+pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_int) !Graph {
+    var graph: Graph = .init(allocator, 0);
+    for (0..particle_count) |_| {
         const kind = random.enumValue(Type);
 
         var particle = kind.toParticle();
         particle.energy = random.float(f64) * 1000.0;
 
-        _ = try graph.putVertex(i, particle);
+        _ = try graph.putVertexAuto(particle);
     }
 
     if (graph.vertices.count() >= 2) {
@@ -330,7 +339,7 @@ pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_in
 }
 
 pub fn print(
-    graph: *Graph(usize, Particle),
+    graph: *Graph,
     allocator: std.mem.Allocator,
     file: *std.Io.Writer,
     iter: usize,

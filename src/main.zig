@@ -5,7 +5,6 @@ const stat = @import("./util/stat.zig").stat;
 const options = @import("options");
 
 const time = std.time;
-const useStat = options.stat;
 const ipc = options.initial_particle_count;
 
 const ParticleGraph = Particle.Graph;
@@ -63,10 +62,12 @@ fn logIteration(
     while (vertices.next()) |v|
         edges += v.*.adjacency_set.count();
 
-    if (useStat) try file.print("{d},{d},{d},{d},{d}\n", .{
-        iter, graph.vertices.count(), edges, iter_time, (try stat(&buf)).rss,
-    }) else try file.print("{d},{d},{d},{d}\n", .{
-        iter, graph.vertices.count(), edges, iter_time,
+    const process_stat = stat(&buf) catch |err| switch (err) {
+        error.FileNotFound => null,
+        else => return err,
+    };
+    try file.print("{d},{d},{d},{d},{d}\n", .{
+        iter, graph.vertices.count(), edges, iter_time, if (process_stat) |s| s.rss else 0,
     });
 
     try file.flush();
@@ -85,12 +86,12 @@ pub fn main() !void {
     );
 
     var file_buffer: [1024]u8 = undefined;
-    var file = try std.fs.cwd().createFile("zig-out/out.csv", .{});
+    var file = try std.fs.cwd().createFile("zig-out/stats.csv", .{});
     var file_writer = file.writer(&file_buffer);
     const file_interface = &file_writer.interface;
     defer file.close();
 
-    try file_interface.print("iter,vertices,num_edges,iter_time{s}\n", .{if (useStat) ",mem" else ""});
+    try file_interface.print("iter,vertices,num_edges,iter_time,mem", .{});
 
     var particle_stats_file_buffer: [1024]u8 = undefined;
     var particle_stats_file = try std.fs.cwd().createFile("zig-out/parts.csv", .{});

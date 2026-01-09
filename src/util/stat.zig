@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const ProcState = enum {
+pub const ProcState = enum {
     /// Running
     R,
     /// Sleeping in an interruptible wait
@@ -35,7 +35,7 @@ const ProcState = enum {
 /// (refer to [ptrace(2)](https://man7.org/linux/man-pages/man2/ptrace.2.html)). \
 /// If the check denies access, then the field value is displayed as 0.
 /// The affected fields are indicated with the marking [PT].
-const ProcStat = struct {
+pub const ProcStat = struct {
     /// `%d`
     pid: std.c.pid_t,
     /// `%s`

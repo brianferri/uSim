@@ -91,7 +91,7 @@ pub fn main() !void {
     const file_interface = &file_writer.interface;
     defer file.close();
 
-    try file_interface.print("iter,vertices,num_edges,iter_time,mem", .{});
+    try file_interface.print("iter,vertices,num_edges,iter_time,mem\n", .{});
 
     var particle_stats_file_buffer: [1024]u8 = undefined;
     var particle_stats_file = try std.fs.cwd().createFile("zig-out/parts.csv", .{});

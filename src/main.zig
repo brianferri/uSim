@@ -41,6 +41,7 @@ var warn_on_quit: bool = false;
 var warn_on_quit_closing: bool = false;
 var graph: ParticleGraph = undefined;
 var prev_graph_state: ParticleGraph = undefined;
+var show_stats_window: bool = false;
 
 pub fn AppInit(win: *dvui.Window) !void {
     orig_content_scale = win.content_scale;
@@ -67,9 +68,29 @@ pub fn AppFrame() !dvui.App.Result {
         if (dvui.button(@src(), "Debug Window", .{}, .{})) dvui.toggleDebugWindow();
 
         dvui.Examples.demo();
-        const label = if (dvui.Examples.show_demo_window) "Hide Demo Window" else "Show Demo Window";
-        if (dvui.button(@src(), label, .{}, .{ .tag = "show-demo-btn" })) {
+        const demo_label = if (dvui.Examples.show_demo_window) "Hide Demo Window" else "Show Demo Window";
+        if (dvui.button(@src(), demo_label, .{}, .{ .tag = "show-demo-btn" })) {
             dvui.Examples.show_demo_window = !dvui.Examples.show_demo_window;
+        }
+
+        if (show_stats_window) {
+            var stats = dvui.floatingWindow(@src(), .{ .open_flag = &show_stats_window }, .{
+                .min_size_content = .{ .w = 400, .h = 400 },
+                .max_size_content = .width(400),
+            });
+            defer stats.deinit();
+            stats.dragAreaSet(dvui.windowHeader("Simulation Statistics", "", &show_stats_window));
+
+            const sim_stats = try Particle.print(allocator, &graph);
+            defer allocator.free(sim_stats);
+
+            var stats_tl = dvui.textLayout(@src(), .{}, .{ .background = false, .expand = .horizontal });
+            defer stats_tl.deinit();
+            stats_tl.addText(sim_stats, .{});
+        }
+        const stats_label = if (show_stats_window) "Hide stats" else "Show stats";
+        if (dvui.button(@src(), stats_label, .{}, .{ .tag = "show-sim-btn" })) {
+            show_stats_window = !show_stats_window;
         }
 
         var fps_tl = dvui.textLayout(@src(), .{}, .{ .background = false, .expand = .horizontal });
@@ -142,7 +163,6 @@ pub fn frame() !dvui.App.Result {
 
     try processInteractions(allocator, &graph);
     if (graph.vertices.count() == 0) return .close;
-    Particle.print(&graph);
 
     // if (std.meta.eql(prev_graph_state, graph) and frame_counter != 0) return .close;
     prev_graph_state = graph;

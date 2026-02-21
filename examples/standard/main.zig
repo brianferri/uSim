@@ -338,8 +338,9 @@ pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_in
 }
 
 pub fn print(
+    allocator: std.mem.Allocator,
     graph: *Graph,
-) void {
+) ![]u8 {
     const num_vertices: usize = graph.vertices.count();
     var total_edges: usize = 0;
 
@@ -361,18 +362,21 @@ pub fn print(
 
     const avg_edges_per_particle = @as(f64, @floatFromInt(total_edges)) / @as(f64, @floatFromInt(num_vertices));
 
-    std.debug.print("\n--- Simulation Statistics ---\n", .{});
-    std.debug.print("Particles (vertices): {}\n", .{num_vertices});
-    std.debug.print("Edges: {}\n", .{total_edges});
-    std.debug.print("Average edges per particle: {d:.2}\n", .{avg_edges_per_particle});
-    std.debug.print("Total Mass: {d:.3} MeV/c^2\n", .{total_mass});
-    std.debug.print("Total Charge: {d:.3} e\n", .{total_charge});
-    std.debug.print("Total Energy: {d:.3} MeV\n", .{total_energy});
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+
+    var writer = &aw.writer;
+    try writer.print("Particles (vertices): {}\n", .{num_vertices});
+    try writer.print("Edges: {}\n", .{total_edges});
+    try writer.print("Average edges per particle: {d:.2}\n", .{avg_edges_per_particle});
+    try writer.print("Total Mass: {d:.3} MeV/c^2\n", .{total_mass});
+    try writer.print("Total Charge: {d:.3} e\n", .{total_charge});
+    try writer.print("Total Energy: {d:.3} MeV\n", .{total_energy});
 
     inline for (@typeInfo(Type).@"enum".fields, 0..) |field, i|
-        std.debug.print("{s}: {any}\n", .{ field.name, counts[i] });
+        try writer.print("{s}: {any}\n", .{ field.name, counts[i] });
 
-    std.debug.print("-----------------------------\n\n", .{});
+    return try aw.toOwnedSlice();
 }
 
 const Renderer = @import("usim").Widgets.Renderer;

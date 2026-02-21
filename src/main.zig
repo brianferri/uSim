@@ -17,8 +17,8 @@ const ipc = options.initial_particle_count;
 pub const dvui_app: dvui.App = .{
     .config = .{
         .options = .{
-            .size = .{ .w = 800.0, .h = 600.0 },
-            .min_size = .{ .w = 250.0, .h = 350.0 },
+            .size = .{ .w = 1920.0, .h = 1080.0 },
+            .min_size = .{ .w = 1920.0, .h = 1080.0 },
             .title = "uSim",
             .window_init_options = .{},
         },
@@ -128,6 +128,8 @@ pub fn frame() !dvui.App.Result {
     {
         var S3D = widgets.Software3D.Software3D(@src(), .{
             .camera_controls = handleInput,
+            .width = 1920,
+            .height = 1080,
         }, .{}).init();
         defer S3D.deinit(allocator);
 

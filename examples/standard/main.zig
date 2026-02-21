@@ -374,3 +374,45 @@ pub fn print(
 
     std.debug.print("-----------------------------\n\n", .{});
 }
+
+const Renderer = @import("usim").Widgets.Renderer;
+
+pub fn render(graph: *Graph) type {
+    return struct {
+        const Self = @This();
+
+        interface: Renderer.Layer,
+
+        graph: *Graph = graph,
+
+        fn initInterface() Renderer.Layer {
+            return .{ .vtable = &.{ .draw = draw } };
+        }
+
+        pub fn layer() Self {
+            return .{
+                .interface = initInterface(),
+                .graph = graph,
+            };
+        }
+
+        fn draw(render_layer: *Renderer.Layer, renderer: Renderer) void {
+            const l: *Self = @alignCast(@fieldParentPtr("interface", render_layer));
+            const lg = l.graph;
+
+            var iter = lg.vertices.iterator();
+            while (iter.next()) |_| {
+                const x = random.float(f32) * 10;
+                const y = random.float(f32) * 10;
+                const z = random.float(f32) * 10;
+
+                const r = random.intRangeAtMost(u8, 0x00, 0xff);
+                const b = random.intRangeAtMost(u8, 0x00, 0xff);
+                const g = random.intRangeAtMost(u8, 0x00, 0xff);
+
+                if (renderer.project(.{ x, y, z })) |point|
+                    renderer.drawPoint(point.x, point.y, .{ .r = r, .g = g, .b = b });
+            }
+        }
+    };
+}

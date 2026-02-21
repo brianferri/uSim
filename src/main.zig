@@ -83,49 +83,6 @@ pub fn AppFrame() !dvui.App.Result {
     return frame();
 }
 
-var Xoshiro = std.Random.DefaultPrng.init(0);
-const random = Xoshiro.random();
-
-pub fn Graph(gra: *ParticleGraph) type {
-    return struct {
-        const Self = @This();
-
-        interface: Renderer.Layer,
-
-        gra: *ParticleGraph = gra,
-
-        fn initInterface() Renderer.Layer {
-            return .{ .vtable = &.{ .draw = draw } };
-        }
-
-        pub fn layer() Self {
-            return .{
-                .interface = initInterface(),
-                .gra = gra,
-            };
-        }
-
-        fn draw(render_layer: *Renderer.Layer, ren: Renderer) void {
-            const l: *Self = @alignCast(@fieldParentPtr("interface", render_layer));
-            const s = l.gra;
-
-            var iter = s.vertices.iterator();
-            while (iter.next()) |_| {
-                const x = random.float(f32) * 10;
-                const y = random.float(f32) * 10;
-                const z = random.float(f32) * 10;
-
-                const r = random.intRangeAtMost(u8, 0x00, 0xff);
-                const b = random.intRangeAtMost(u8, 0x00, 0xff);
-                const g = random.intRangeAtMost(u8, 0x00, 0xff);
-
-                if (ren.project(.{ x, y, z })) |point|
-                    ren.drawPoint(point.x, point.y, .{ .r = r, .g = g, .b = b });
-            }
-        }
-    };
-}
-
 fn processInteractions(alloc: std.mem.Allocator, g: *ParticleGraph) !void {
     var particle_status: std.AutoArrayHashMap(usize, bool) = .init(alloc);
     defer particle_status.deinit();
@@ -176,7 +133,7 @@ pub fn frame() !dvui.App.Result {
 
         try S3D.addLayer(allocator, Renderer.Grid(5, 10));
         try S3D.addLayer(allocator, Renderer.Axes(1.0));
-        try S3D.addLayer(allocator, Graph(&graph));
+        try S3D.addLayer(allocator, Particle.render(&graph));
 
         S3D.render();
     }

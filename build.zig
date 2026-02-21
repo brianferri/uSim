@@ -4,6 +4,13 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const dvui = b.dependency("dvui", .{
+        .target = target,
+        .optimize = optimize,
+        .backend = .sdl3,
+    });
+    const dvui_mod = dvui.module("dvui_sdl3");
+
     const model = b.option([]const u8, "model", "The example model to use for particles/interactions") orelse "standard";
     const initial_particle_count = b.option(usize, "ipc", "The number of particles to have the simulation start with") orelse 1;
 
@@ -24,6 +31,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     ulib_mod.addImport("usim", usim_mod);
+    usim_mod.addImport("dvui", dvui_mod);
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -32,6 +40,7 @@ pub fn build(b: *std.Build) !void {
     });
     exe_mod.addImport("usim", usim_mod);
     exe_mod.addImport("ulib", ulib_mod);
+    exe_mod.addImport("dvui", dvui_mod);
     exe_mod.addOptions("options", options);
 
     const exe = b.addExecutable(.{

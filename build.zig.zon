@@ -2,6 +2,12 @@
     .fingerprint = 0x7452ad39b22d5b93,
     .name = .UniverseLib,
     .version = "0.0.0",
+    .dependencies = .{
+        .dvui = .{
+            .url = "git+https://github.com/david-vanderson/dvui#2b6dfe7fd7a10a3d074f087bea4b709ed015f259",
+            .hash = "dvui-0.4.0-dev-AQFJmaQl2wDj-nR5BEX6yrkNF_HPN4JMK2FfhASDB-fD",
+        },
+    },
     .paths = .{
         "build.zig",
         "build.zig.zon",

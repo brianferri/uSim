@@ -14,7 +14,6 @@ const ParticleGraph = Particle.Graph;
 const time = std.time;
 const ipc = options.initial_particle_count;
 
-
 pub const dvui_app: dvui.App = .{
     .config = .{
         .options = .{
@@ -41,6 +40,7 @@ var orig_content_scale: f32 = 1.0;
 var warn_on_quit: bool = false;
 var warn_on_quit_closing: bool = false;
 var graph: ParticleGraph = undefined;
+var prev_graph_state: ParticleGraph = undefined;
 
 pub fn AppInit(win: *dvui.Window) !void {
     orig_content_scale = win.content_scale;
@@ -83,6 +83,90 @@ pub fn AppFrame() !dvui.App.Result {
     return frame();
 }
 
+var Xoshiro = std.Random.DefaultPrng.init(0);
+const random = Xoshiro.random();
+
+pub fn Graph(gra: *ParticleGraph) type {
+    return struct {
+        const Self = @This();
+
+        interface: Renderer.Layer,
+
+        gra: *ParticleGraph = gra,
+
+        fn initInterface() Renderer.Layer {
+            return .{
+                .vtable = &.{ .draw = draw },
+            };
+        }
+
+        pub fn layer() Self {
+            return .{
+                .interface = initInterface(),
+                .gra = gra,
+            };
+        }
+
+        fn draw(render_layer: *Renderer.Layer, ren: Renderer) void {
+            const l: *Self = @alignCast(@fieldParentPtr("interface", render_layer));
+            const s = l.gra;
+
+            var iter = s.vertices.iterator();
+            while (iter.next()) |_| {
+                const x = random.intRangeAtMost(u8, 0x00, 0xff);
+                const y = random.intRangeAtMost(u8, 0x00, 0xff);
+
+                const r = random.intRangeAtMost(u8, 0x00, 0xff);
+                const b = random.intRangeAtMost(u8, 0x00, 0xff);
+                const g = random.intRangeAtMost(u8, 0x00, 0xff);
+
+                ren.drawPoint(x, y, .{ .r = r, .g = g, .b = b });
+            }
+        }
+    };
+}
+
+fn processInteractions(alloc: std.mem.Allocator, g: *ParticleGraph) !void {
+    var particle_status: std.AutoArrayHashMap(usize, bool) = .init(alloc);
+    defer particle_status.deinit();
+
+    var iter = g.vertices.iterator();
+    while (iter.next()) |entry| {
+        const p1_key = entry.key_ptr.*;
+        if ((try particle_status.getOrPutValue(p1_key, false)).found_existing) continue;
+        const p1_value = entry.value_ptr.*;
+
+        var adj_iter = p1_value.adjacency_set.iterator();
+        while (adj_iter.next()) |adj_entry| {
+            const p2_key = adj_entry.key_ptr.*;
+            if ((try particle_status.getOrPutValue(p2_key, false)).found_existing) continue;
+            const p2_value = g.getVertex(p2_key) orelse continue;
+
+            var emission_buffer: std.ArrayList(Particle) = .empty;
+            defer emission_buffer.deinit(alloc);
+
+            const consumed = try Particle.interact(&p1_value.data, &p2_value.data, &emission_buffer, alloc);
+            try particle_status.put(p1_key, consumed[0]);
+            try particle_status.put(p2_key, consumed[1]);
+
+            for (emission_buffer.items) |particle| {
+                const next_key = try g.putVertexAuto(particle);
+                try g.addEdge(p1_key, next_key);
+                try g.addEdge(p2_key, next_key);
+                try g.addEdge(next_key, p1_key);
+                try g.addEdge(next_key, p2_key);
+                try particle_status.put(next_key, false);
+            }
+        }
+    }
+
+    var status_iter = particle_status.iterator();
+    while (status_iter.next()) |status| {
+        if (status.value_ptr.*) _ = g.removeVertex(status.key_ptr.*);
+    }
+}
+
+var frame_counter: u64 = 0;
 pub fn frame() !dvui.App.Result {
     {
         var S3D = widgets.Software3D.Software3D(@src(), .{
@@ -92,9 +176,18 @@ pub fn frame() !dvui.App.Result {
 
         try S3D.addLayer(allocator, Renderer.Grid(5, 10));
         try S3D.addLayer(allocator, Renderer.Axes(1.0));
+        try S3D.addLayer(allocator, Graph(&graph));
 
         S3D.render();
     }
+
+    try processInteractions(allocator, &graph);
+    if (graph.vertices.count() == 0) return .close;
+    Particle.print(&graph);
+
+    if (std.meta.eql(prev_graph_state, graph) and frame_counter != 0) return .close;
+    prev_graph_state = graph;
+    frame_counter += 1;
 
     return .ok;
 }

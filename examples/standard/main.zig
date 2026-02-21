@@ -304,7 +304,6 @@ fn handlePairProduction(a: *Particle, b: *Particle, emitted: *std.ArrayList(Part
     return true;
 }
 
-
 fn nextUsize(curr: usize) usize {
     return curr + 1;
 }
@@ -340,10 +339,7 @@ pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_in
 
 pub fn print(
     graph: *Graph,
-    allocator: std.mem.Allocator,
-    file: *std.Io.Writer,
-    iter: usize,
-) !void {
+) void {
     const num_vertices: usize = graph.vertices.count();
     var total_edges: usize = 0;
 
@@ -377,55 +373,4 @@ pub fn print(
         std.debug.print("{s}: {any}\n", .{ field.name, counts[i] });
 
     std.debug.print("-----------------------------\n\n", .{});
-
-    if (iter == 0) {
-        try file.print("iter,vertices,num_edges,total_mass,total_charge,total_energy", .{});
-        inline for (@typeInfo(Type).@"enum".fields) |field| {
-            try file.print(",{s}", .{field.name});
-        }
-        try file.print("\n", .{});
-    }
-
-    try file.print("{d},{d},{d},{d:.3},{d:.3},{d:.3}", .{
-        iter,
-        num_vertices,
-        total_edges,
-        total_mass,
-        total_charge,
-        total_energy,
-    });
-
-    inline for (counts) |c| try file.print(",{d}", .{c});
-    try file.print("\n", .{});
-    try file.flush();
-
-    var gfile_buffer: [1024]u8 = undefined;
-    const gfile_name = try std.fmt.allocPrint(allocator, "zig-out/graph/iter_{d}.gv", .{iter});
-    defer allocator.free(gfile_name);
-    var gfile = try std.fs.cwd().createFile(gfile_name, .{});
-    var gfile_writer = gfile.writer(&gfile_buffer);
-    const gfile_interface = &gfile_writer.interface;
-    defer gfile.close();
-    try gfile_interface.print("digraph G {{\n", .{});
-
-    var it = graph.vertices.iterator();
-    while (it.next()) |entry| {
-        const vertex_id = entry.key_ptr.*;
-        var p = entry.value_ptr.*.data;
-        const label = try std.fmt.allocPrint(allocator, "{s}\\nm:{d:.1} q:{d:.1}", .{
-            @tagName(Type.fromStruct(&p)),
-            p.mass,
-            p.charge,
-        });
-        defer allocator.free(label);
-        try gfile_interface.print("  {d} [label=\"{s}\"];\n", .{ vertex_id, label });
-
-        var neighbors = entry.value_ptr.*.adjacency_set.iterator();
-        while (neighbors.next()) |dst| {
-            try gfile_interface.print("  {d} -> {d};\n", .{ vertex_id, dst.key_ptr.* });
-        }
-    }
-
-    try gfile_interface.print("}}\n", .{});
-    try gfile_interface.flush();
 }

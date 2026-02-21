@@ -95,9 +95,7 @@ pub fn Graph(gra: *ParticleGraph) type {
         gra: *ParticleGraph = gra,
 
         fn initInterface() Renderer.Layer {
-            return .{
-                .vtable = &.{ .draw = draw },
-            };
+            return .{ .vtable = &.{ .draw = draw } };
         }
 
         pub fn layer() Self {

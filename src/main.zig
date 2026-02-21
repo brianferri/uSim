@@ -113,14 +113,16 @@ pub fn Graph(gra: *ParticleGraph) type {
 
             var iter = s.vertices.iterator();
             while (iter.next()) |_| {
-                const x = random.intRangeAtMost(u8, 0x00, 0xff);
-                const y = random.intRangeAtMost(u8, 0x00, 0xff);
+                const x = random.float(f32) * 10;
+                const y = random.float(f32) * 10;
+                const z = random.float(f32) * 10;
 
                 const r = random.intRangeAtMost(u8, 0x00, 0xff);
                 const b = random.intRangeAtMost(u8, 0x00, 0xff);
                 const g = random.intRangeAtMost(u8, 0x00, 0xff);
 
-                ren.drawPoint(x, y, .{ .r = r, .g = g, .b = b });
+                if (ren.project(.{ x, y, z })) |point|
+                    ren.drawPoint(point.x, point.y, .{ .r = r, .g = g, .b = b });
             }
         }
     };
@@ -185,7 +187,7 @@ pub fn frame() !dvui.App.Result {
     if (graph.vertices.count() == 0) return .close;
     Particle.print(&graph);
 
-    if (std.meta.eql(prev_graph_state, graph) and frame_counter != 0) return .close;
+    // if (std.meta.eql(prev_graph_state, graph) and frame_counter != 0) return .close;
     prev_graph_state = graph;
     frame_counter += 1;
 

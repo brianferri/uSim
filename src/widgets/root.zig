@@ -1,3 +1,3 @@
-pub const Software3D = @import("Software3D.zig");
-pub const Renderer = @import("rendering/Renderer.zig");
-pub const Camera = @import("rendering/Camera.zig");
+pub const Software3D = @import("./S3D/Software3D.zig");
+pub const Renderer = @import("./S3D/Renderer.zig");
+pub const Camera = @import("./S3D/Camera.zig");

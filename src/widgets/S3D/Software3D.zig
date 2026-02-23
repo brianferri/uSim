@@ -1,7 +1,7 @@
 const std = @import("std");
 const dvui = @import("dvui");
-const Renderer = @import("rendering/Renderer.zig").Renderer;
-const Camera = @import("rendering/Camera.zig");
+const Renderer = @import("Renderer.zig").Renderer;
+const Camera = @import("Camera.zig");
 
 pub fn Software3D(
     src: std.builtin.SourceLocation,

@@ -161,10 +161,10 @@ pub fn frame() !dvui.App.Result {
         S3D.render();
     }
 
-    try processInteractions(allocator, &graph);
+    if (!std.meta.eql(prev_graph_state, graph) or frame_counter == 0)
+        try processInteractions(allocator, &graph);
     if (graph.vertices.count() == 0) return .close;
 
-    // if (std.meta.eql(prev_graph_state, graph) and frame_counter != 0) return .close;
     prev_graph_state = graph;
     frame_counter += 1;
 

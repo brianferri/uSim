@@ -83,7 +83,7 @@ const Type = enum {
     /// | W Boson           | 80379         | ±12                | ±1         | 1.0  | No           |
     /// | Z Boson           | 91187.6       | ±2.1               | 0          | 1.0  | No           |
     /// | Higgs Boson       | 125100        | ±300               | 0          | 0.0  | No           |
-    fn fromStruct(particle: *Particle) Type {
+    fn fromStruct(particle: Particle) Type {
         if (particle.has_color) {
             if (particle.spin == 0.5) {
                 if (approxEqual(f64, particle.charge, 2.0 / 3.0, 0.01)) {
@@ -225,7 +225,7 @@ fn handleAnnihilation(a: *Particle, b: *Particle, emitted: *std.ArrayList(Partic
 }
 
 fn handleDecay(p: *Particle, emitted: *std.ArrayList(Particle), allocator: std.mem.Allocator) !bool {
-    var particle_type: Type = .fromStruct(p);
+    var particle_type: Type = .fromStruct(p.*);
     const decay = particle_type.decay(p.energy) orelse return false;
 
     if (decay[2] != null) {
@@ -278,8 +278,8 @@ fn handleScattering(a: *Particle, b: *Particle, emitted: *std.ArrayList(Particle
 ///
 /// The energy is equally divided between the two produced particles, and their spins are set to conserve angular momentum.
 fn handlePairProduction(a: *Particle, b: *Particle, emitted: *std.ArrayList(Particle), allocator: std.mem.Allocator) !bool {
-    const particle_a = Type.fromStruct(a);
-    const particle_b = Type.fromStruct(b);
+    const particle_a = Type.fromStruct(a.*);
+    const particle_b = Type.fromStruct(b.*);
     if (particle_a != .Photon and particle_b != .Photon) return false;
 
     const total_energy = a.energy + b.energy;
@@ -344,7 +344,8 @@ pub fn print(
     const num_vertices: usize = graph.vertices.count();
     var total_edges: usize = 0;
 
-    var counts = [_]usize{0} ** @typeInfo(Type).@"enum".fields.len;
+    const ParticleTypesLen = @typeInfo(Type).@"enum".fields.len;
+    var counts: std.meta.Tuple(&[_]type{usize} ** ParticleTypesLen) = .{0} ** ParticleTypesLen;
     var total_mass: f64 = 0.0;
     var total_charge: f64 = 0.0;
     var total_energy: f64 = 0.0;
@@ -353,8 +354,8 @@ pub fn print(
     while (vertices.next()) |v| {
         total_edges += v.*.adjacency_set.count();
 
-        var p = v.*.*.data;
-        counts[@intFromEnum(Type.fromStruct(&p))] += 1;
+        const p = v.*.*.data;
+        counts[@intFromEnum(Type.fromStruct(p))] += 1;
         total_mass += p.mass;
         total_charge += p.charge;
         total_energy += p.energy;
@@ -366,15 +367,27 @@ pub fn print(
     defer aw.deinit();
 
     var writer = &aw.writer;
-    try writer.print("Particles (vertices): {}\n", .{num_vertices});
-    try writer.print("Edges: {}\n", .{total_edges});
-    try writer.print("Average edges per particle: {d:.2}\n", .{avg_edges_per_particle});
-    try writer.print("Total Mass: {d:.3} MeV/c^2\n", .{total_mass});
-    try writer.print("Total Charge: {d:.3} e\n", .{total_charge});
-    try writer.print("Total Energy: {d:.3} MeV\n", .{total_energy});
 
-    inline for (@typeInfo(Type).@"enum".fields, 0..) |field, i|
-        try writer.print("{s}: {any}\n", .{ field.name, counts[i] });
+    try writer.print(
+        \\Particles (vertices): {d}
+        \\Edges: {d}
+        \\Average edges per particle: {d:.2}
+        \\Total Mass: {d:.3} MeV/c^2
+        \\Total Charge: {d:.3} e
+        \\Total Energy: {d:.3} MeV
+    ++ blk: {
+        comptime var stats_count: []const u8 = "";
+        inline for (@typeInfo(Type).@"enum".fields) |field|
+            stats_count = stats_count ++ field.name ++ ": {d}\n";
+        break :blk stats_count;
+    }, .{
+        num_vertices,
+        total_edges,
+        avg_edges_per_particle,
+        total_mass,
+        total_charge,
+        total_energy,
+    } ++ counts);
 
     return try aw.toOwnedSlice();
 }

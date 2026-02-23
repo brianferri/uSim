@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) !void {
     const model = b.option([]const u8, "model", "The example model to use for particles/interactions") orelse "standard";
     const initial_particle_count = b.option(usize, "ipc", "The number of particles to have the simulation start with") orelse 1;
 
-    const model_path = try std.fmt.allocPrint(b.allocator, "examples/{s}/main.zig", .{model});
+    const model_path = try std.fmt.allocPrint(b.allocator, "models/{s}/main.zig", .{model});
 
     const options = b.addOptions();
     options.addOption(usize, "initial_particle_count", initial_particle_count);

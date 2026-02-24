@@ -337,6 +337,20 @@ pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_in
     return graph;
 }
 
+fn BuildTupleFromArray(comptime Array: type) type {
+    const Element = std.meta.Elem(Array);
+    const len = @typeInfo(Array).array.len;
+    const types_array: [len]type = @splat(Element);
+    return std.meta.Tuple(&types_array);
+}
+
+/// https://ziggit.dev/t/comptime-code-to-create-a-tuple-from-an-array/11329/3
+fn buildTupleFromArray(array: anytype) BuildTupleFromArray(@TypeOf(array)) {
+    var a: BuildTupleFromArray(@TypeOf(array)) = undefined;
+    inline for (&array, 0..) |value, i| a[i] = value;
+    return a;
+}
+
 pub fn print(
     allocator: std.mem.Allocator,
     graph: *Graph,
@@ -345,7 +359,7 @@ pub fn print(
     var total_edges: usize = 0;
 
     const ParticleTypesLen = @typeInfo(Type).@"enum".fields.len;
-    var counts: std.meta.Tuple(&[_]type{usize} ** ParticleTypesLen) = .{0} ** ParticleTypesLen;
+    var counts: [ParticleTypesLen]usize = @splat(0);
     var total_mass: f64 = 0.0;
     var total_charge: f64 = 0.0;
     var total_energy: f64 = 0.0;
@@ -375,6 +389,7 @@ pub fn print(
         \\Total Mass: {d:.3} MeV/c^2
         \\Total Charge: {d:.3} e
         \\Total Energy: {d:.3} MeV
+        \\
     ++ blk: {
         comptime var stats_count: []const u8 = "";
         inline for (@typeInfo(Type).@"enum".fields) |field|
@@ -387,7 +402,7 @@ pub fn print(
         total_mass,
         total_charge,
         total_energy,
-    } ++ counts);
+    } ++ buildTupleFromArray(counts));
 
     return try aw.toOwnedSlice();
 }

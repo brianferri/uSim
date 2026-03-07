@@ -4,12 +4,16 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const dvui = b.dependency("dvui", .{
+    const dvui = if (target.result.cpu.arch == .wasm32) b.dependency("dvui", .{
+        .target = target,
+        .optimize = optimize,
+        .backend = .web,
+    }) else b.dependency("dvui", .{
         .target = target,
         .optimize = optimize,
         .backend = .sdl3,
     });
-    const dvui_mod = dvui.module("dvui_sdl3");
+    const dvui_mod = dvui.module(if (target.result.cpu.arch == .wasm32) "dvui_web" else "dvui_sdl3");
 
     const model = b.option([]const u8, "model", "The example model to use for particles/interactions") orelse "standard";
     const initial_particle_count = b.option(usize, "ipc", "The number of particles to have the simulation start with") orelse 1;
@@ -44,11 +48,17 @@ pub fn build(b: *std.Build) !void {
     exe_mod.addOptions("options", options);
 
     const exe = b.addExecutable(.{
-        .name = "uSim",
+        .name = if (target.result.cpu.arch == .wasm32) "web" else "uSim",
         .root_module = exe_mod,
     });
     b.installArtifact(exe);
 
+    if (target.result.cpu.arch == .wasm32) {
+        const web_js = dvui.namedLazyPath("web.js");
+        const web_html = dvui.path("src/backends/index.html");
+        b.getInstallStep().dependOn(&b.addInstallFileWithDir(web_js, .bin, "web.js").step);
+        b.getInstallStep().dependOn(&b.addInstallFileWithDir(web_html, .bin, "index.html").step);
+    }
     const install_docs = b.addInstallDirectory(.{
         .source_dir = b.addLibrary(.{
             .name = model,

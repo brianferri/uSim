@@ -4,8 +4,8 @@
     .version = "0.0.0",
     .dependencies = .{
         .dvui = .{
-            .url = "git+https://github.com/david-vanderson/dvui#2b6dfe7fd7a10a3d074f087bea4b709ed015f259",
-            .hash = "dvui-0.4.0-dev-AQFJmaQl2wDj-nR5BEX6yrkNF_HPN4JMK2FfhASDB-fD",
+            .url = "git+https://github.com/david-vanderson/dvui#597eb1efdc367701ceee413e9a0df7a810b3d949",
+            .hash = "dvui-0.4.0-dev-AQFJmS1r3gAx2uAwJRN4Ulo94Ih2xVEtnzqH0bmjy6J_",
         },
     },
     .paths = .{

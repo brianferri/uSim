@@ -5,8 +5,6 @@ const Particle = @import("ulib");
 const options = @import("options");
 const builtin = @import("builtin");
 
-const stat = @import("./util/stat.zig").stat;
-
 const widgets = uSim.Widgets;
 const Renderer = widgets.Renderer;
 const ParticleGraph = Particle.Graph;
@@ -105,7 +103,8 @@ pub fn AppFrame() !dvui.App.Result {
 }
 
 fn processInteractions(alloc: std.mem.Allocator, g: *ParticleGraph) !void {
-    var particle_status: std.AutoArrayHashMap(usize, bool) = .init(alloc);
+    // TODO(brianferri): Let the particle determine what should be the key type
+    var particle_status: std.AutoArrayHashMap(u64, bool) = .init(alloc);
     defer particle_status.deinit();
 
     var iter = g.vertices.iterator();

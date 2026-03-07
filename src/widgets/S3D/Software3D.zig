@@ -87,7 +87,7 @@ pub fn Software3D(
                 dvui.timer(self.widget_data.id, wait_us);
             }
 
-            dvui.renderImage(image_source, rect_scale, .{}) catch std.debug.print("Render Error", .{});
+            dvui.renderImage(image_source, rect_scale, .{}) catch unreachable;
         }
     };
 }

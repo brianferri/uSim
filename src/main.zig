@@ -148,8 +148,8 @@ pub fn frame() !dvui.App.Result {
     {
         var S3D = widgets.Software3D.Software3D(@src(), .{
             .camera_controls = handleInput,
-            .width = 1920,
-            .height = 1080,
+            .width = 400,
+            .height = 400,
         }, .{}).init();
         defer S3D.deinit(allocator);
 

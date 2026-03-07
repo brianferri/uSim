@@ -17,6 +17,12 @@ pub fn Software3D(
         const Self = @This();
 
         const frame_len = init_opts.width * init_opts.height * 4;
+        comptime {
+            // TODO(brianferri): eventually check the correct size of the `render` function https://github.com/ziglang/zig/issues/157 https://github.com/ziglang/zig/issues/23367 https://github.com/ziglang/zig/issues/23446
+            if (@import("builtin").cpu.arch == .wasm32) {
+                if (frame_len >= 7654321 - 1024) @compileError("Reduce the frame_len");
+            }
+        }
 
         const State = struct {
             camera: Camera = .init,

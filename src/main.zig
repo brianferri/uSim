@@ -5,8 +5,6 @@ const Particle = @import("ulib");
 const options = @import("options");
 const builtin = @import("builtin");
 
-const stat = @import("./util/stat.zig").stat;
-
 const widgets = uSim.Widgets;
 const Renderer = widgets.Renderer;
 const ParticleGraph = Particle.Graph;
@@ -92,20 +90,21 @@ pub fn AppFrame() !dvui.App.Result {
         if (dvui.button(@src(), stats_label, .{}, .{ .tag = "show-sim-btn" })) {
             show_stats_window = !show_stats_window;
         }
-
-        var fps_tl = dvui.textLayout(@src(), .{}, .{ .background = false, .expand = .horizontal });
-        defer fps_tl.deinit();
-
-        const fps = try std.fmt.allocPrint(allocator, "FPS: {d}", .{dvui.FPS()});
-        defer allocator.free(fps);
-        fps_tl.addText(fps, .{ .style = .highlight });
     }
+
+    var fps_tl = dvui.textLayout(@src(), .{}, .{ .background = false, .expand = .horizontal });
+    defer fps_tl.deinit();
+
+    const fps = try std.fmt.allocPrint(allocator, "FPS: {d}", .{dvui.FPS()});
+    defer allocator.free(fps);
+    fps_tl.addText(fps, .{ .style = .highlight });
 
     return frame();
 }
 
 fn processInteractions(alloc: std.mem.Allocator, g: *ParticleGraph) !void {
-    var particle_status: std.AutoArrayHashMap(usize, bool) = .init(alloc);
+    // TODO(brianferri): Let the particle determine what should be the key type
+    var particle_status: std.AutoArrayHashMap(u64, bool) = .init(alloc);
     defer particle_status.deinit();
 
     var iter = g.vertices.iterator();
@@ -149,8 +148,8 @@ pub fn frame() !dvui.App.Result {
     {
         var S3D = widgets.Software3D.Software3D(@src(), .{
             .camera_controls = handleInput,
-            .width = 1920,
-            .height = 1080,
+            .width = 400,
+            .height = 400,
         }, .{}).init();
         defer S3D.deinit(allocator);
 

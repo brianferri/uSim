@@ -4,7 +4,8 @@ const uSim = @import("usim");
 const Particle = @This();
 
 const approxEqual = std.math.approxEqRel;
-const random = std.crypto.random;
+var prng = std.Random.DefaultPrng.init(0);
+const random = prng.random();
 
 has_color: bool,
 /// e
@@ -304,15 +305,15 @@ fn handlePairProduction(a: *Particle, b: *Particle, emitted: *std.ArrayList(Part
     return true;
 }
 
-fn nextUsize(curr: usize) usize {
+fn nextUsize(curr: u64) u64 {
     return curr + 1;
 }
 
-fn lessThan(a: usize, b: usize) std.math.Order {
+fn lessThan(a: u64, b: u64) std.math.Order {
     return std.math.order(a, b);
 }
 
-pub const Graph = uSim.Graph(usize, Particle, nextUsize, lessThan);
+pub const Graph = uSim.Graph(u64, Particle, nextUsize, lessThan);
 
 pub fn initializeGraph(allocator: std.mem.Allocator, particle_count: comptime_int) !Graph {
     var graph: Graph = .init(allocator, 0);

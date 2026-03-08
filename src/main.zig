@@ -90,14 +90,14 @@ pub fn AppFrame() !dvui.App.Result {
         if (dvui.button(@src(), stats_label, .{}, .{ .tag = "show-sim-btn" })) {
             show_stats_window = !show_stats_window;
         }
-
-        var fps_tl = dvui.textLayout(@src(), .{}, .{ .background = false, .expand = .horizontal });
-        defer fps_tl.deinit();
-
-        const fps = try std.fmt.allocPrint(allocator, "FPS: {d}", .{dvui.FPS()});
-        defer allocator.free(fps);
-        fps_tl.addText(fps, .{ .style = .highlight });
     }
+
+    var fps_tl = dvui.textLayout(@src(), .{}, .{ .background = false, .expand = .horizontal });
+    defer fps_tl.deinit();
+
+    const fps = try std.fmt.allocPrint(allocator, "FPS: {d}", .{dvui.FPS()});
+    defer allocator.free(fps);
+    fps_tl.addText(fps, .{ .style = .highlight });
 
     return frame();
 }

@@ -1,3 +1,4 @@
+//! Linux `/proc/self/stat` parser (host-only tooling). Kept under `src/utils/` so it does not land in the wasm `usim` graph; import this file explicitly where needed.
 const std = @import("std");
 
 pub const ProcState = enum {
@@ -45,101 +46,101 @@ pub const ProcStat = struct {
     /// `%d`
     ppid: std.c.pid_t,
     /// `%d`
-    pgrp: c_int,
+    pgrp: std.c_int,
     /// `%d`
-    session: c_int,
+    session: std.c_int,
     /// `%d`
-    tty_nr: c_int,
+    tty_nr: std.c_int,
     /// `%d`
-    tpgid: c_int,
+    tpgid: std.c_int,
     /// `%u`
-    flags: c_uint,
+    flags: std.c_uint,
     /// `%lu`
-    minflt: c_ulong,
+    minflt: std.c_ulong,
     /// `%lu`
-    cminflt: c_ulong,
+    cminflt: std.c_ulong,
     /// `%lu`
-    majflt: c_ulong,
+    majflt: std.c_ulong,
     /// `%lu`
-    cmajflt: c_ulong,
+    cmajflt: std.c_ulong,
     /// `%lu`
-    utime: c_ulong,
+    utime: std.c_ulong,
     /// `%lu`
-    stime: c_ulong,
+    stime: std.c_ulong,
     /// `%ld`
-    cutime: c_long,
+    cutime: std.c_long,
     /// `%ld`
-    cstime: c_long,
+    cstime: std.c_long,
     /// `%ld`
-    priority: c_long,
+    priority: std.c_long,
     /// `%ld`
-    nice: c_long,
+    nice: std.c_long,
     /// `%ld`
-    num_threads: c_long,
+    num_threads: std.c_long,
     /// `%ld`
-    itrealvalue: c_long,
+    itrealvalue: std.c_long,
     /// `%llu`
-    starttime: c_ulonglong,
+    starttime: std.c_ulonglong,
     /// `%lu`
-    vsize: c_ulong,
+    vsize: std.c_ulong,
     /// `%ld`
-    rss: c_long,
+    rss: std.c_long,
     /// `%lu`
-    rsslim: c_ulong,
+    rsslim: std.c_ulong,
     /// `%lu`
-    startcode: c_ulong,
+    startcode: std.c_ulong,
     /// `%lu`
-    endcode: c_ulong,
+    endcode: std.c_ulong,
     /// `%lu`
-    startstack: c_ulong,
+    startstack: std.c_ulong,
     /// `%lu`
-    kstkesp: c_ulong,
+    kstkesp: std.c_ulong,
     /// `%lu`
-    kstkeip: c_ulong,
+    kstkeip: std.c_ulong,
     /// `%lu`
-    signal: c_ulong,
+    signal: std.c_ulong,
     /// `%lu`
-    blocked: c_ulong,
+    blocked: std.c_ulong,
     /// `%lu`
-    sigignore: c_ulong,
+    sigignore: std.c_ulong,
     /// `%lu`
-    sigcatch: c_ulong,
+    sigcatch: std.c_ulong,
     /// `%lu`
-    wchan: c_ulong,
+    wchan: std.c_ulong,
     /// `%lu`
-    nswap: c_ulong,
+    nswap: std.c_ulong,
     /// `%lu`
-    cnswap: c_ulong,
+    cnswap: std.c_ulong,
     /// `%d`
-    exit_signal: c_int,
+    exit_signal: std.c_int,
     /// `%d`
-    processor: c_int,
+    processor: std.c_int,
     /// `%u`
-    rt_priority: c_uint,
+    rt_priority: std.c_uint,
     /// `%u`
-    policy: c_uint,
+    policy: std.c_uint,
     /// `%llu`
-    delayacct_blkio_ticks: c_ulonglong,
+    delayacct_blkio_ticks: std.c_ulonglong,
     /// `%lu`
-    guest_time: c_ulong,
+    guest_time: std.c_ulong,
     /// `%ld`
-    cguest_time: c_long,
+    cguest_time: std.c_long,
     /// `%lu`
-    start_data: c_ulong,
+    start_data: std.c_ulong,
     /// `%lu`
-    end_data: c_ulong,
+    end_data: std.c_ulong,
     /// `%lu`
-    start_brk: c_ulong,
+    start_brk: std.c_ulong,
     /// `%lu`
-    arg_start: c_ulong,
+    arg_start: std.c_ulong,
     /// `%lu`
-    arg_end: c_ulong,
+    arg_end: std.c_ulong,
     /// `%lu`
-    env_start: c_ulong,
+    env_start: std.c_ulong,
     /// `%lu`
-    env_end: c_ulong,
+    env_end: std.c_ulong,
     /// `%d`
-    exit_code: c_int,
+    exit_code: std.c_int,
 };
 
 /// From the Linux Man Pages: [proc_pid_stat(5) — Linux manual page](https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html) \
@@ -155,14 +156,14 @@ pub fn stat(buf: []u8) !ProcStat {
     defer std.posix.close(stat_fd);
     const len = try std.posix.read(stat_fd, buf);
     var seq = std.mem.splitScalar(u8, buf[0..len], ' ');
-    var procStat: ProcStat = undefined;
+    var proc_stat: ProcStat = undefined;
     inline for (std.meta.fields(ProcStat)) |field| {
-        const seqItem = seq.next() orelse break;
-        @field(procStat, field.name) = switch (field.type) {
-            ProcState => std.meta.stringToEnum(ProcState, seqItem) orelse unreachable,
-            []const u8 => seqItem,
-            else => std.fmt.parseInt(field.type, seqItem, 0) catch 0,
+        const seq_item = seq.next() orelse break;
+        @field(proc_stat, field.name) = switch (field.type) {
+            ProcState => std.meta.stringToEnum(ProcState, seq_item) orelse unreachable,
+            []const u8 => seq_item,
+            else => std.fmt.parseInt(field.type, seq_item, 0) catch 0,
         };
     }
-    return procStat;
+    return proc_stat;
 }

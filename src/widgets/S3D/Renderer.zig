@@ -65,6 +65,41 @@ pub fn drawPoint(self: Renderer, x: i32, y: i32, color: Color) void {
     self.buf[@intCast(idx + 3)] = color.a;
 }
 
+/// Axis-aligned plus in pixel space (for markers on top of projected vertices).
+pub fn drawPlusMarker(self: Renderer, cx: i32, cy: i32, half_span: i32, color: Color) void {
+    var d: i32 = -half_span;
+    while (d <= half_span) : (d += 1) {
+        self.drawPoint(cx + d, cy, color);
+        self.drawPoint(cx, cy + d, color);
+    }
+}
+
+/// Filled disc in framebuffer pixel space (selection emphasis).
+pub fn drawFilledDiscPixels(self: Renderer, cx: i32, cy: i32, rad: i32, color: Color) void {
+    if (rad <= 0) return;
+    var dy: i32 = -rad;
+    while (dy <= rad) : (dy += 1) {
+        var dx: i32 = -rad;
+        while (dx <= rad) : (dx += 1) {
+            if (dx * dx + dy * dy <= rad * rad + 1)
+                self.drawPoint(cx + dx, cy + dy, color);
+        }
+    }
+}
+
+/// Approximate circle outline in pixel space (64 samples).
+pub fn drawCircleOutline(self: Renderer, cx: i32, cy: i32, radius: i32, color: Color) void {
+    if (radius <= 0) return;
+    const rf = @as(f32, @floatFromInt(radius));
+    var s: u32 = 0;
+    while (s < 64) : (s += 1) {
+        const t = 2 * std.math.pi * (@as(f32, @floatFromInt(s)) / 64.0);
+        const ox = @round(std.math.cos(t) * rf);
+        const oy = @round(std.math.sin(t) * rf);
+        self.drawPoint(cx + @as(i32, @intFromFloat(ox)), cy + @as(i32, @intFromFloat(oy)), color);
+    }
+}
+
 pub fn drawLine3D(self: Renderer, start_world: Vec3, end_world: Vec3, color: Color) void {
     const p0_opt = self.project(start_world);
     const p1_opt = self.project(end_world);

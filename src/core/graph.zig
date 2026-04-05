@@ -57,7 +57,7 @@ pub fn Graph(
         const Vertices = std.AutoHashMap(K, *Node);
         const Self = @This();
 
-        fn compareFnAuto(context: void, a: K, b: K) std.math.Order {
+        pub fn compareFnAuto(context: void, a: K, b: K) std.math.Order {
             if (compareFn == null) @panic("This graph doesn't support index comparisons");
             _ = context;
             return compareFn.?(a, b);
@@ -133,20 +133,30 @@ pub fn Graph(
         /// If there is an `Entry` with a matching key, it is deleted from
         /// the hash map, and this function returns true.  Otherwise this
         /// function returns false.
-        pub fn removeVertex(self: *Self, index: K) bool {
-            if (self.getVertex(index)) |vertex| {
-                var vertex_iterator = self.vertices.iterator();
-                while (vertex_iterator.next()) |entry| {
-                    try self.removeEdge(entry.key_ptr.*, index);
-                }
+        pub fn removeVertex(self: *Self, index: K) !bool {
+            const vertex = self.getVertex(index) orelse return false;
 
-                vertex.deinit();
-                self.allocator.destroy(vertex);
+            const n_in = vertex.incidency_set.count();
+            const n_out = vertex.adjacency_set.count();
+            const scratch = try self.allocator.alloc(K, @max(n_in, n_out));
+            defer self.allocator.free(scratch);
 
-                if (self.vertices.remove(index)) {
-                    self.free_ids.add(index) catch {};
-                    return true;
-                }
+            var i: usize = 0;
+            var inc_it = vertex.incidency_set.iterator();
+            while (inc_it.next()) |e| : (i += 1) scratch[i] = e.key_ptr.*;
+            for (0..i) |j| try self.removeEdge(scratch[j], index);
+
+            i = 0;
+            var adj_it = vertex.adjacency_set.iterator();
+            while (adj_it.next()) |e| : (i += 1) scratch[i] = e.key_ptr.*;
+            for (0..i) |j| try self.removeEdge(index, scratch[j]);
+
+            vertex.deinit();
+            self.allocator.destroy(vertex);
+
+            if (self.vertices.remove(index)) {
+                self.free_ids.add(index) catch {};
+                return true;
             }
 
             return false;
@@ -175,39 +185,112 @@ pub fn Graph(
         }
 
         pub fn addEdge(self: *Self, v1: K, v2: K) !void {
-            //? Check helps branch prediction
-            if (self.hasAdjEdge(v1, v2) or self.hasIncEdge(v2, v1)) return;
+            const out_from = self.getVertex(v1) orelse return;
+            if (out_from.pointsTo(v2)) return;
+            const into = self.getVertex(v2) orelse return;
+            try out_from.addAdjEdge(v2);
+            try into.addIncEdge(v1);
+        }
 
-            if (self.getVertex(v1)) |v| {
-                try v.addAdjEdge(v2);
-            }
-
-            if (self.getVertex(v2)) |v| {
-                try v.addIncEdge(v1);
-            }
+        /// Same as `addEdge` but skips duplicate checks. Caller must guarantee `v1 -> v2` is absent (e.g. cloning from a consistent graph).
+        pub fn addEdgeUnchecked(self: *Self, v1: K, v2: K) !void {
+            const out_from = self.getVertex(v1) orelse return;
+            const into = self.getVertex(v2) orelse return;
+            try out_from.addAdjEdge(v2);
+            try into.addIncEdge(v1);
         }
 
         pub fn removeEdge(self: *Self, v1: K, v2: K) !void {
-            //? Check helps branch prediction
-            if (!self.hasAdjEdge(v1, v2) or !self.hasIncEdge(v2, v1)) return;
-
-            if (self.getVertex(v1)) |v| {
-                try v.removeAdjEdge(v2);
-            }
-
-            if (self.getVertex(v2)) |v| {
-                try v.removeIncEdge(v1);
-            }
+            const out_from = self.getVertex(v1) orelse return;
+            if (!out_from.pointsTo(v2)) return;
+            const into = self.getVertex(v2) orelse return;
+            try out_from.removeAdjEdge(v2);
+            try into.removeIncEdge(v1);
         }
 
         pub fn setVertex(self: *Self, index: K, data: T) !void {
-            try self.vertices.put(index, data);
+            if (self.getVertex(index)) |v| {
+                v.*.data = data;
+            } else {
+                return error.VertexNotFound;
+            }
         }
     };
 }
 
+/// Deep copy for graphs with auto ids (`nextFn`) and a total order on keys (`compareFn`).
+pub fn cloneAutoIdGraph(
+    comptime K: type,
+    comptime T: type,
+    comptime nextFn: fn (K) K,
+    comptime compareFn: fn (a: K, b: K) std.math.Order,
+    self: *const Graph(K, T, nextFn, compareFn),
+    allocator: std.mem.Allocator,
+) !Graph(K, T, nextFn, compareFn) {
+    const G = Graph(K, T, nextFn, compareFn);
+    var out: G = .{
+        .allocator = allocator,
+        .vertices = .init(allocator),
+        .next_id = self.next_id,
+        .free_ids = blk: {
+            var fq = std.PriorityQueue(K, void, G.compareFnAuto).init(allocator, {});
+            for (self.free_ids.items) |id| try fq.add(id);
+            break :blk fq;
+        },
+    };
+    errdefer out.deinit();
+
+    var vit = self.vertices.iterator();
+    while (vit.next()) |ent| {
+        const node = ent.value_ptr.*;
+        const new_n = try allocator.create(G.Node);
+        new_n.* = G.Node.init(allocator, node.data);
+        try out.vertices.put(ent.key_ptr.*, new_n);
+    }
+
+    vit = self.vertices.iterator();
+    while (vit.next()) |ent| {
+        const k = ent.key_ptr.*;
+        const node = ent.value_ptr.*;
+        var aj = node.adjacency_set.iterator();
+        while (aj.next()) |ae| {
+            try out.addEdgeUnchecked(k, ae.key_ptr.*);
+        }
+    }
+    return out;
+}
+
 pub fn AutoGraph(comptime K: type, comptime T: type) type {
     return Graph(K, T, null, null);
+}
+
+fn cloneTestNext(x: usize) usize {
+    return x + 1;
+}
+
+fn cloneTestOrder(a: usize, b: usize) std.math.Order {
+    return std.math.order(a, b);
+}
+
+test "cloneAutoIdGraph copies structure" {
+    const G = Graph(usize, u32, cloneTestNext, cloneTestOrder);
+    var g: G = .init(testing.allocator, 0);
+    defer g.deinit();
+    try g.putVertex(5, 100);
+    try g.putVertex(7, 200);
+    try g.addEdge(5, 7);
+
+    var c = try cloneAutoIdGraph(usize, u32, cloneTestNext, cloneTestOrder, &g, testing.allocator);
+    defer c.deinit();
+
+    try testing.expectEqual(@as(usize, 2), c.vertices.count());
+    try testing.expectEqual(@as(u32, 100), c.getVertexData(5).?);
+    try testing.expectEqual(@as(u32, 200), c.getVertexData(7).?);
+    try testing.expect(c.hasAdjEdge(5, 7));
+
+    try c.setVertex(5, 999);
+    try testing.expectEqual(@as(u32, 100), g.getVertexData(5).?);
+    try testing.expectEqual(@as(u32, 999), c.getVertexData(5).?);
 }
 
 test "graph initialization" {
@@ -231,7 +314,7 @@ test "add and remove vertex" {
     try graph.putVertex(1, 123);
 
     try testing.expect(graph.getVertexData(1) == 123);
-    try testing.expect(graph.removeVertex(1) == true);
+    try testing.expect(try graph.removeVertex(1));
     try testing.expect(graph.getVertexData(1) == null);
 }
 
@@ -278,7 +361,7 @@ test "add vertexes and edges, remove vertex, test for edges" {
     try graph.addEdge(2, 1);
     try testing.expect(graph.hasAdjEdge(2, 1));
 
-    try testing.expect(graph.removeVertex(1));
+    try testing.expect(try graph.removeVertex(1));
     try testing.expect(graph.getVertexData(1) == null);
     try testing.expect(!graph.hasAdjEdge(1, 2));
     try testing.expect(!graph.hasAdjEdge(2, 1));
@@ -353,7 +436,7 @@ test "putVertexAuto reuses freed IDs" {
     try testing.expect(b == 1);
     try testing.expect(c == 2);
 
-    try testing.expect(graph.removeVertex(1));
+    try testing.expect(try graph.removeVertex(1));
 
     const d = try graph.putVertexAuto(44);
 
@@ -387,7 +470,7 @@ test "putVertexAuto works with non-numeric key" {
 
     try testing.expect(graph.getVertexData(.{ .c = 'b' }) == 20);
 
-    try testing.expect(graph.removeVertex(.{ .c = 'b' }));
+    try testing.expect(try graph.removeVertex(.{ .c = 'b' }));
 
     const id4 = try graph.putVertexAuto(40);
     try testing.expect(id4.c == 'b');

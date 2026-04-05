@@ -10,6 +10,8 @@ pub fn Software3D(
         height: usize = 400,
         target_fps: usize = 60,
         camera_controls: ?fn (*Camera) void,
+        /// Left click inside the image: framebuffer pixel coords and current camera (after `camera_controls`).
+        on_left_press: ?*const fn (?*anyopaque, Camera, f32, f32) void = null,
     },
     opts: dvui.Options,
 ) type {
@@ -31,6 +33,8 @@ pub fn Software3D(
         state: State = .{},
         widget_data: dvui.WidgetData = undefined,
         layers: std.ArrayList(*Renderer.Layer) = .empty,
+        /// Ignored unless `init_opts.on_left_press` is non-null. Set each frame before `render`.
+        left_press_ctx: ?*anyopaque = null,
 
         pub fn init() Self {
             var defaults: dvui.Options = .{
@@ -62,15 +66,16 @@ pub fn Software3D(
             try self.layers.append(allocator, interface);
         }
 
-        pub fn render(
-            self: Self,
-        ) void {
+        pub fn render(self: *Self, allocator: std.mem.Allocator) std.mem.Allocator.Error!void {
             if (self.widget_data.rect.empty()) return;
 
             const rect_scale = self.widget_data.contentRectScale();
-            var frame_buffer: [frame_len]u8 = undefined;
+            // Stack frame this large (~3.5 MiB at 1280x720) overflows typical 8 MiB threads with dvui/SDL above it.
+            const frame_buffer = try allocator.alloc(u8, frame_len);
+            defer allocator.free(frame_buffer);
+
             const image_source: dvui.ImageSource = .{ .pixels = .{
-                .rgba = &frame_buffer,
+                .rgba = frame_buffer,
                 .width = init_opts.width,
                 .height = init_opts.height,
             } };
@@ -78,11 +83,37 @@ pub fn Software3D(
             const state = dvui.dataGetPtrDefault(null, self.widget_data.id, "state", State, self.state);
             if (init_opts.camera_controls) |handle| handle(&state.camera);
 
+            if (init_opts.on_left_press) |on_press| {
+                if (self.left_press_ctx) |ctx| {
+                    const pr = self.widget_data.contentRectScale().r;
+                    if (pr.w > 0 and pr.h > 0) {
+                        for (dvui.events()) |*ev| {
+                            if (ev.handled) continue;
+                            switch (ev.evt) {
+                                .mouse => |me| {
+                                    if (me.action != .press or me.button != .left) continue;
+                                    if (!dvui.eventMatch(ev, .{ .id = self.widget_data.id, .r = pr })) continue;
+                                    const rel_x = me.p.x - pr.x;
+                                    const rel_y = me.p.y - pr.y;
+                                    const fw: f32 = @floatFromInt(init_opts.width);
+                                    const fh: f32 = @floatFromInt(init_opts.height);
+                                    const fb_x = rel_x / pr.w * fw;
+                                    const fb_y = rel_y / pr.h * fh;
+                                    on_press(ctx, state.camera, fb_x, fb_y);
+                                    ev.handle(@src(), &self.widget_data);
+                                },
+                                else => {},
+                            }
+                        }
+                    }
+                }
+            }
+
             if (dvui.timerDoneOrNone(self.widget_data.id)) {
-                @memset(&frame_buffer, 0);
+                @memset(frame_buffer, 0);
 
                 for (self.layers.items) |layer| layer.draw(.init(.{
-                    .buf = &frame_buffer,
+                    .buf = frame_buffer,
                     .width = init_opts.width,
                     .height = init_opts.height,
                     .camera = state.camera,

@@ -12,5 +12,7 @@
         "build.zig",
         "build.zig.zon",
         "src",
+        "models",
+        "visualizations",
     },
 }

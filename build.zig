@@ -16,12 +16,14 @@ pub fn build(b: *std.Build) !void {
     const dvui_mod = dvui.module(if (target.result.cpu.arch == .wasm32) "dvui_web" else "dvui_sdl3");
 
     const model = b.option([]const u8, "model", "The example model to use for particles/interactions") orelse "standard";
-    const initial_particle_count = b.option(usize, "ipc", "The number of particles to have the simulation start with") orelse 1;
+    const initial_particle_count = b.option(usize, "ipc", "The number of particles to have the simulation start with") orelse 100;
+    const simulation_rng_seed = b.option(u64, "sim_seed", "Fixed RNG seed for the standard model (reproducible runs)") orelse 0xfeed_beef;
 
     const model_path = try std.fmt.allocPrint(b.allocator, "models/{s}/main.zig", .{model});
 
     const options = b.addOptions();
     options.addOption(usize, "initial_particle_count", initial_particle_count);
+    options.addOption(u64, "simulation_rng_seed", simulation_rng_seed);
 
     const ulib_mod = b.createModule(.{
         .root_source_file = b.path(model_path),
@@ -37,21 +39,53 @@ pub fn build(b: *std.Build) !void {
     ulib_mod.addImport("usim", usim_mod);
     usim_mod.addImport("dvui", dvui_mod);
 
+    const vlib_mod = b.createModule(.{
+        .root_source_file = b.path("visualizations/dispatch.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    vlib_mod.addImport("usim", usim_mod);
+    vlib_mod.addImport("ulib", ulib_mod);
+
     const exe_mod = b.createModule(.{
-        .root_source_file = b.path("src/main.zig"),
+        .root_source_file = b.path("src/app/main.zig"),
         .target = target,
         .optimize = optimize,
     });
     exe_mod.addImport("usim", usim_mod);
     exe_mod.addImport("ulib", ulib_mod);
+    exe_mod.addImport("vlib", vlib_mod);
     exe_mod.addImport("dvui", dvui_mod);
     exe_mod.addOptions("options", options);
+
+    const bench_mod = b.createModule(.{
+        .root_source_file = b.path("src/app/bench_sim.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    bench_mod.addImport("usim", usim_mod);
+    bench_mod.addImport("ulib", ulib_mod);
+    bench_mod.addOptions("options", options);
 
     const exe = b.addExecutable(.{
         .name = if (target.result.cpu.arch == .wasm32) "web" else "uSim",
         .root_module = exe_mod,
     });
     b.installArtifact(exe);
+
+    if (target.result.cpu.arch != .wasm32) {
+        const bench_exe = b.addExecutable(.{
+            .name = "bench_sim",
+            .root_module = bench_mod,
+        });
+        b.installArtifact(bench_exe);
+
+        const run_bench = b.addRunArtifact(bench_exe);
+        run_bench.step.dependOn(b.getInstallStep());
+        if (b.args) |args| run_bench.addArgs(args);
+        const bench_step = b.step("bench", "Headless sim: zig build bench -- [steps] (uses -Dipc/-Dmodel)");
+        bench_step.dependOn(&run_bench.step);
+    }
 
     if (target.result.cpu.arch == .wasm32) {
         const web_js = dvui.namedLazyPath("web.js");

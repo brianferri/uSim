@@ -57,21 +57,22 @@ pub fn Graph(
         const Vertices = std.AutoHashMapUnmanaged(K, *Node);
         const Self = @This();
 
-        fn compareFnAuto(context: void, a: K, b: K) std.math.Order {
-            if (compareFn == null) @panic("This graph doesn't support index comparisons");
-            _ = context;
-            return compareFn.?(a, b);
-        }
 
         vertices: Vertices,
         next_id: K,
-        free_ids: std.PriorityQueue(K, void, compareFnAuto),
+        free_ids: std.PriorityQueue(K, void, struct {
+            fn compare(context: void, a: K, b: K) std.math.Order {
+                if (compareFn == null) @panic("This graph doesn't support index comparisons");
+                _ = context;
+                return compareFn.?(a, b);
+            }
+        }.compare),
 
-        fn init(allocator: std.mem.Allocator, first_id: K) Self {
+        fn init(first_id: K) Self {
             return .{
                 .vertices = .empty,
+                .free_ids = .empty,
                 .next_id = first_id,
-                .free_ids = .init(allocator, {}),
             };
         }
 
@@ -83,7 +84,7 @@ pub fn Graph(
                 allocator.destroy(vertex.*);
             }
 
-            self.free_ids.deinit();
+            self.free_ids.deinit(allocator);
             self.vertices.deinit(allocator);
             self.* = undefined;
         }
@@ -101,7 +102,7 @@ pub fn Graph(
             if (nextFn == null) @panic("This graph doesn't support auto indexing");
             var id: K = undefined;
 
-            if (self.free_ids.removeOrNull()) |recycled| id = recycled else {
+            if (self.free_ids.pop()) |recycled| id = recycled else {
                 id = self.next_id;
                 self.next_id = nextFn.?(self.next_id);
             }
@@ -131,7 +132,7 @@ pub fn Graph(
                 allocator.destroy(vertex);
 
                 if (self.vertices.remove(index)) {
-                    self.free_ids.add(index) catch {};
+                    self.free_ids.push(allocator, index) catch {};
                     return true;
                 }
             }
@@ -198,12 +199,12 @@ pub fn AutoGraph(comptime K: type, comptime T: type) type {
 }
 
 test "graph initialization" {
-    var graph: AutoGraph(usize, u32) = .init(testing.allocator, 0);
+    var graph: AutoGraph(usize, u32) = .init(0);
     defer graph.deinit(testing.allocator);
 }
 
 test "add vertex" {
-    var graph: AutoGraph(usize, u32) = .init(testing.allocator, 0);
+    var graph: AutoGraph(usize, u32) = .init(0);
     defer graph.deinit(testing.allocator);
 
     try graph.putVertex(testing.allocator, 1, 123);
@@ -212,7 +213,7 @@ test "add vertex" {
 }
 
 test "add and remove vertex" {
-    var graph: AutoGraph(usize, u32) = .init(testing.allocator, 0);
+    var graph: AutoGraph(usize, u32) = .init(0);
     defer graph.deinit(testing.allocator);
 
     try graph.putVertex(testing.allocator, 1, 123);
@@ -223,7 +224,7 @@ test "add and remove vertex" {
 }
 
 test "add edge between two vertices" {
-    var graph: AutoGraph(usize, u32) = .init(testing.allocator, 0);
+    var graph: AutoGraph(usize, u32) = .init(0);
     defer graph.deinit(testing.allocator);
 
     try graph.putVertex(testing.allocator, 1, 123);
@@ -235,7 +236,7 @@ test "add edge between two vertices" {
 }
 
 test "add and remove an edge" {
-    var graph: AutoGraph(usize, u32) = .init(testing.allocator, 0);
+    var graph: AutoGraph(usize, u32) = .init(0);
     defer graph.deinit(testing.allocator);
 
     try graph.putVertex(testing.allocator, 1, 123);
@@ -249,7 +250,7 @@ test "add and remove an edge" {
 }
 
 test "add vertexes and edges, remove vertex, test for edges" {
-    var graph: AutoGraph(usize, u32) = .init(testing.allocator, 0);
+    var graph: AutoGraph(usize, u32) = .init(0);
     defer graph.deinit(testing.allocator);
 
     try graph.putVertex(testing.allocator, 1, 123);
@@ -272,7 +273,7 @@ test "add vertexes and edges, remove vertex, test for edges" {
 }
 
 test "getting neighbors" {
-    var graph: AutoGraph(usize, u32) = .init(testing.allocator, 0);
+    var graph: AutoGraph(usize, u32) = .init(0);
     defer graph.deinit(testing.allocator);
 
     try graph.putVertex(testing.allocator, 1, 123);
@@ -292,10 +293,10 @@ test "getting neighbors" {
 }
 
 test "graph in a graph" {
-    var graph = AutoGraph(usize, AutoGraph(usize, u32)).init(testing.allocator, 0);
+    var graph = AutoGraph(usize, AutoGraph(usize, u32)).init(0);
     defer graph.deinit(testing.allocator);
 
-    try graph.putVertex(testing.allocator, 1, .init(testing.allocator, 0));
+    try graph.putVertex(testing.allocator, 1, .init(0));
     var inner_graph_data: AutoGraph(usize, u32) = graph.getVertexData(1).?;
     defer inner_graph_data.deinit(testing.allocator);
 
@@ -313,7 +314,7 @@ fn lessThan(a: usize, b: usize) std.math.Order {
 
 test "putVertexAuto basic increasing IDs" {
     var graph: Graph(usize, u32, nextUsize, lessThan) =
-        .init(testing.allocator, 0);
+        .init(0);
     defer graph.deinit(testing.allocator);
 
     const id1 = try graph.putVertexAuto(testing.allocator, 100);
@@ -330,8 +331,7 @@ test "putVertexAuto basic increasing IDs" {
 }
 
 test "putVertexAuto reuses freed IDs" {
-    var graph: Graph(usize, u32, nextUsize, lessThan) =
-        .init(testing.allocator, 0);
+    var graph: Graph(usize, u32, nextUsize, lessThan) = .init(0);
     defer graph.deinit(testing.allocator);
 
     const a = try graph.putVertexAuto(testing.allocator, 11);
@@ -363,8 +363,7 @@ fn lessThanLetter(k1: Letter, k2: Letter) std.math.Order {
     return std.math.order(k1.c, k2.c);
 }
 test "putVertexAuto works with non-numeric key" {
-    var graph: Graph(Letter, u32, nextLetter, lessThanLetter) =
-        .init(testing.allocator, .{ .c = 'a' });
+    var graph: Graph(Letter, u32, nextLetter, lessThanLetter) = .init(.{ .c = 'a' });
     defer graph.deinit(testing.allocator);
 
     const id1 = try graph.putVertexAuto(testing.allocator, 10);

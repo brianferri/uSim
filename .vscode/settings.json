@@ -4,5 +4,5 @@
     "lldb.dereferencePointers": true,
     "lldb.consoleMode": "commands",
     "zig.zls.enabled": "on",
-    "zig.zls.enableBuildOnSave": true,
+    "zig.buildOnSaveProvider": "zls",
 }
